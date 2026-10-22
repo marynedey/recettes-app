@@ -14,7 +14,7 @@ App de recettes perso, pensée mobile (Android), en français. Maquette validée
 | Fichier | Rôle |
 |---|---|
 | `index.html`, `manifest.webmanifest` | coquille, manifest PWA (+ `share_target` Android) |
-| `sw.js` | service worker : cache de l'app (cache d'abord, mise à jour en arrière-plan). **Incrémenter `VERSION` et compléter `FICHIERS` quand on ajoute/renomme un fichier.** |
+| `sw.js` | service worker : cache de l'app (cache d'abord, mise à jour en arrière-plan, rechargement automatique quand une nouvelle version s'installe). Compléter `FICHIERS` quand on ajoute/renomme un fichier. |
 | `js/format.js` | front matter, Markdown ↔ objet recette, quantités (recalcul portions), minuteurs, ingrédients d'une étape. Sans dépendance navigateur, testé avec `node --test`. |
 | `js/github.js` | appels API GitHub (arbre, blobs, contents PUT/DELETE) |
 | `js/store.js` | cache local (texte brut des recettes par sha dans `localStorage`, photos dans le Cache API), favoris, historique, imports en attente |
@@ -33,6 +33,7 @@ tags: [classique, pommes]
 portions: 6
 preparation: 20           # minutes
 cuisson: 55               # minutes
+repos: 30                 # minutes (pousse, frigo, marinade… facultatif)
 difficulte: Facile        # Facile | Moyen | Difficile
 photo: photos/tarte-tatin.jpg
 source: https://…         # lien d'origine si import
@@ -63,8 +64,18 @@ Captures, PDF, TikToks : convertis à la main par Claude dans une conversation (
 ## Design (Direction A)
 Fond `#F6F0E6`, cartes `#FFFBF4`, encre `#2B2118`, texte secondaire `#8A7B6B`, bordures `#E7DCCB`, accent `#C4552D`, minuteur `#E9B949`, fond doux `#F1E3D3`. Titres Fraunces, texte Inter (auto-hébergées dans `fonts/`, licence OFL). Rayons ~18 px. Images manquantes : placeholder dégradé chaud.
 
+## Versions
+À **chaque** changement publié, augmenter la version dans `js/views/reglages.js` (affichée en bas des Réglages) **et** la même dans `sw.js` (`mr-app-X.Y.Z`) : c'est ce qui fait installer la nouvelle version sur le téléphone. Un test vérifie que les deux correspondent.
+- `Z` (1.2.0 → 1.2.1) : correction de bug.
+- `Y` (1.2.0 → 1.3.0) : nouvelle fonctionnalité.
+- `X` (1.x → 2.0.0) : changement incompatible (ex. format des recettes à migrer).
+
 ## Tests
-`node --test tests/*.test.mjs` (format, quantités, minuteurs, aller-retour des recettes de `tests/fixtures/`). Pour tester l'UI en local : `python3 -m http.server` puis http://localhost:8000.
+- `npm test` : tests unitaires (format, quantités, minuteurs, ingrédients d'une étape, jeton envoyé à GitHub, versions et fichiers du service worker).
+- `npm run test:navigateur` : parcours complets dans Chromium (format téléphone) avec un faux GitHub qui refuse toute requête sans le bon jeton : réglages, accueil, fiche (portions, « à ajuster », glisser), mode cuisine (retour, minuteur), ajout manuel (contenu du fichier écrit), import, hors ligne. Nécessite `npm ci` (Playwright, utilisé uniquement pour les tests).
+- `npm run verifier-version` : échoue si l'app a changé sans que la version augmente.
+- Le workflow `.github/workflows/tests.yml` lance les trois sur chaque PR (contrôles « Tests unitaires », « Parcours navigateur », « Version augmentée ») ; ils sont obligatoires pour fusionner dans `main`.
+- Pour voir l'UI en local : `python3 -m http.server` puis http://localhost:8000.
 
 ## Plus tard
 Partage foyer, liste de courses, favoris synchronisés, import IA optionnel.

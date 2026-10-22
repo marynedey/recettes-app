@@ -5,6 +5,7 @@ tags: [brioche, cannelle, goûter]
 portions: 12
 preparation: 45
 cuisson: 22
+repos: 80
 difficulte: Moyen
 ajoutee: 2026-10-22
 ---
@@ -13,11 +14,13 @@ ajoutee: 2026-10-22
 ### Pour la pâte à brioche
 - 540 g farine
 - 8 g levure boulangère
+- 1 c. à soupe sucre (pour la levure)
+- 1 c. à soupe farine (pour la levure)
 - 90 g sucre
 - 270 mL lait
 - 57 g beurre demi-sel
 - 1 sachet sucre vanillé
-- 1 pot yaourt nature (87 g)
+- 87 g yaourt nature
 
 ### Pour la garniture
 - 113 g beurre fondu

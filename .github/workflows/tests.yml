@@ -1,16 +1,62 @@
 # Tests de l'app
 name: Tests
 
+# Lancé sur chaque PR vers main et sur chaque push sur main.
+# Les trois contrôles ci-dessous sont à rendre obligatoires dans les
+# règles de la branche main (Settings → Rules → Rulesets).
 on:
-  push:
   pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  tests:
+  unitaires:
+    name: Tests unitaires
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test tests/*.test.mjs
+      - name: Syntaxe de tous les fichiers JavaScript
+        run: for f in sw.js js/*.js js/views/*.js; do node --check "$f"; done
+      - name: Format des recettes, quantités, minuteurs, versions
+        run: npm test
+
+  navigateur:
+    name: Parcours navigateur
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Parcours complets dans Chromium (format téléphone)
+        run: npm run test:navigateur
+
+  version:
+    name: Version augmentée
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: La version doit augmenter si l'app change
+        run: node tests/verifier-version.mjs origin/${{ github.base_ref }}

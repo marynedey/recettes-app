@@ -69,7 +69,7 @@ export function chargerPhotos(root, trouver) {
 }
 
 export function tempsTotal(r) {
-  return (Number(r.meta.preparation) || 0) + (Number(r.meta.cuisson) || 0);
+  return (Number(r.meta.preparation) || 0) + (Number(r.meta.cuisson) || 0) + (Number(r.meta.repos) || 0);
 }
 
 export function carteRecette(r) {
