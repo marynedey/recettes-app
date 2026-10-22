@@ -1,3 +1,4 @@
+# Tests de l'app
 name: Tests
 
 # Lancé sur chaque PR vers main et sur chaque push sur main.
