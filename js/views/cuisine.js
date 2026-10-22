@@ -1,50 +1,9 @@
-// Mode cuisine : une étape par écran, minuteur, écran maintenu allumé.
+// Mode cuisine : une étape par écran, minuteurs (plusieurs à la fois), écran maintenu allumé.
 
 import * as store from '../store.js';
 import { flatSteps, ingredientsForStep, formatQty, detectTimers } from '../format.js';
-import { esc, icon, texteEtape } from '../ui.js';
-
-/* ---------- minuteur (survit au changement d'étape) ---------- */
-
-const minuteur = {
-  slug: null, etape: -1, total: 0, reste: 0, fin: null, fini: false, label: '',
-  get enCours() { return this.fin !== null; },
-  restant() { return this.fin ? Math.max(0, Math.round((this.fin - Date.now()) / 1000)) : this.reste; },
-  regler(slug, etape, sec, label) {
-    Object.assign(this, { slug, etape, total: sec, reste: sec, fin: null, fini: false, label });
-  },
-  lancer() { if (!this.fin && this.reste > 0) { this.fin = Date.now() + this.reste * 1000; this.fini = false; } },
-  pause() { if (this.fin) { this.reste = this.restant(); this.fin = null; } },
-  ajuster(d) {
-    if (this.fin) this.fin = Math.max(Date.now() + 1000, this.fin + d * 1000);
-    else this.reste = Math.max(0, this.reste + d);
-    this.total = Math.max(this.total + d, this.restant(), 1);
-    if (this.restant() > 0) this.fini = false;
-  },
-};
-
-let audio = null;
-function sonnerie() {
-  try {
-    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
-    const t0 = audio.currentTime;
-    for (let i = 0; i < 6; i++) {
-      const o = audio.createOscillator(), g = audio.createGain();
-      o.frequency.value = i % 2 ? 660 : 880;
-      g.gain.setValueAtTime(0.0001, t0 + i * 0.35);
-      g.gain.exponentialRampToValueAtTime(0.4, t0 + i * 0.35 + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.35 + 0.3);
-      o.connect(g).connect(audio.destination);
-      o.start(t0 + i * 0.35); o.stop(t0 + i * 0.35 + 0.32);
-    }
-  } catch { /* pas de son */ }
-  navigator.vibrate?.([400, 200, 400, 200, 400]);
-  if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-    navigator.serviceWorker?.ready.then(reg => reg.showNotification('Minuteur terminé', {
-      body: minuteur.label || 'C\'est prêt !', icon: 'icons/icon-192.png', tag: 'minuteur', renotify: true, vibrate: [400, 200, 400],
-    })).catch(() => {});
-  }
-}
+import { esc, icon, texteEtape, toast } from '../ui.js';
+import * as M from '../minuteurs.js';
 
 const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 const fmtLong = s => s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : fmt(s);
@@ -98,11 +57,6 @@ export function cuisine(root, { params, query }) {
   const surVisibilite = () => { if (!document.hidden) garderEcranAllume().then(majBadge); };
   document.addEventListener('visibilitychange', surVisibilite);
 
-  // Demande discrète d'autorisation de notification au premier lancement de minuteur.
-  const demanderNotif = () => {
-    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
-  };
-
   let choixDuree = 0;
   let courant = null; // { s, timers } de l'étape affichée
 
@@ -112,21 +66,24 @@ export function cuisine(root, { params, query }) {
     const ings = ingredientsForStep(r, s);
     const timers = detectTimers(s.texte);
     if (choixDuree >= timers.length) choixDuree = 0;
-    courant = { s, timers };
-    const ceMinuteur = minuteur.slug === r.slug && minuteur.etape === i;
-    const autre = minuteur.slug === r.slug && minuteur.etape !== i && (minuteur.enCours || minuteur.fini);
+    const id = timers.length ? M.idMinuteur(r.slug, i, choixDuree) : null;
+    courant = { s, timers, id };
+    // Les minuteurs de cette recette lancés ailleurs (autre étape, autre durée).
+    const autres = M.deRecette(r.slug).filter(m => m.id !== id);
 
     root.querySelector('#barre').style.width = `${((i + 1) / steps.length) * 100}%`;
     corps.innerHTML = `
-      ${autre ? `<button class="minuteur-mini ${minuteur.fini ? 'fini' : ''}" id="mini" style="width:100%">${icon('clock')}
-        <span>Étape ${minuteur.etape + 1}${minuteur.fini ? ' : terminé !' : ''}</span><span class="temps" data-temps>${fmtLong(minuteur.restant())}</span></button>` : ''}
+      ${autres.length ? `<div class="minuteurs-autres">${autres.map(m => `
+        <button class="minuteur-mini" data-id="${esc(m.id)}">${icon('clock')}
+          <span class="m-etape">Étape ${m.etape + 1}</span><span class="m-lib">${esc(m.label)}</span><span class="temps"></span></button>`).join('')}</div>` : ''}
       <div class="etape-label">Étape ${i + 1} <span>sur ${steps.length}</span></div>
       ${s.group ? `<div class="etape-groupe">${esc(s.group)}</div>` : ''}
       <p class="cuisine-texte">${texteEtape(s.texte)}</p>
       ${ings.length ? `<div class="petit-label">Pour cette étape</div>
         <div class="puces-ing">${ings.map(g => `<span>${g.qty != null ? `<b>${esc(formatQty(g, facteur))}</b> ` : ''}${esc(g.qty == null ? g.raw : g.name)}</span>`).join('')}</div>` : ''}
-      ${timers.length || ceMinuteur ? `
-        ${timers.length > 1 ? `<div class="choix-durees">${timers.map((t, k) => `<button data-k="${k}" aria-pressed="${k === choixDuree}">${esc(t.texte)}</button>`).join('')}</div>` : ''}
+      ${timers.length ? `
+        ${timers.length > 1 ? `<div class="choix-durees">${timers.map((t, k) => `<button data-k="${k}" aria-pressed="${k === choixDuree}"
+          class="${M.obtenir(M.idMinuteur(r.slug, i, k)) ? 'a-minuteur' : ''}">${esc(t.texte)}</button>`).join('')}</div>` : ''}
         <div class="minuteur" id="minuteur">
           <div class="anneau"><svg viewBox="0 0 100 100"><circle class="fond-anneau" cx="50" cy="50" r="44"/><circle class="val" cx="50" cy="50" r="44" pathLength="100" stroke-dasharray="100"/></svg>
             <div class="centre"><span class="temps" id="t-bloc"></span><span class="lib" id="lib"></span></div></div>
@@ -135,6 +92,10 @@ export function cuisine(root, { params, query }) {
             <button class="lecture" id="m-lecture"></button>
             <button id="m-plus">+1 min</button>
           </div>
+        </div>
+        <div class="minuteur-actions">
+          <button class="lien" id="m-reset" hidden>Réinitialiser</button>
+          ${M.estAndroid() ? `<button class="lien" id="m-horloge">${icon('clock')}Lancer dans l'Horloge Android</button>` : ''}
         </div>` : ''}`;
 
     const prec = root.querySelector('#prec');
@@ -142,26 +103,30 @@ export function cuisine(root, { params, query }) {
     prec.disabled = i === 0;
     suiv.innerHTML = i === steps.length - 1 ? `Terminé ${icon('check')}` : `Suivante ${icon('arrow')}`;
 
-    corps.querySelector('#mini')?.addEventListener('click', () => allerA(minuteur.etape));
+    corps.querySelectorAll('.minuteur-mini').forEach(b => b.addEventListener('click', () => {
+      const m = M.obtenir(b.dataset.id);
+      if (m) allerA(m.etape, +m.id.split('|')[2]);
+    }));
     corps.querySelectorAll('.choix-durees button').forEach(b => b.addEventListener('click', () => {
       choixDuree = +b.dataset.k;
-      if (!(ceMinuteur && minuteur.enCours)) minuteur.regler(r.slug, i, timers[choixDuree].secondes, s.group || 'Minuteur');
       rendreEtape();
     }));
 
-    const bloc = corps.querySelector('#minuteur');
-    if (bloc) {
-      if (!ceMinuteur && !minuteur.enCours) minuteur.regler(r.slug, i, timers[choixDuree].secondes, libelle(s, timers[choixDuree]));
-      const lecture = bloc.querySelector('#m-lecture');
-      lecture.onclick = () => {
-        demanderNotif();
-        if (minuteur.slug !== r.slug || minuteur.etape !== i) minuteur.regler(r.slug, i, timers[choixDuree].secondes, libelle(s, timers[choixDuree]));
-        if (minuteur.fini || minuteur.restant() === 0) { minuteur.regler(r.slug, i, minuteur.total || timers[choixDuree]?.secondes || 60, minuteur.label); }
-        if (minuteur.enCours) minuteur.pause(); else minuteur.lancer();
-        tic();
+    if (id) {
+      const t = timers[choixDuree];
+      const defaut = { id, slug: r.slug, titre: r.meta.titre, etape: i, label: libelle(s, t), secondes: t.secondes };
+      corps.querySelector('#m-lecture').onclick = () => {
+        M.demanderNotifications();
+        if (M.enCours(M.obtenir(id))) M.pause(id); else M.lancer(defaut);
       };
-      bloc.querySelector('#m-moins').onclick = () => { if (minuteur.etape === i) { minuteur.ajuster(-60); tic(); } };
-      bloc.querySelector('#m-plus').onclick = () => { if (minuteur.etape === i) { minuteur.ajuster(60); tic(); } };
+      corps.querySelector('#m-moins').onclick = () => M.ajuster(id, -60, defaut);
+      corps.querySelector('#m-plus').onclick = () => M.ajuster(id, 60, defaut);
+      corps.querySelector('#m-reset').onclick = () => M.supprimer(id);
+      const horloge = corps.querySelector('#m-horloge');
+      if (horloge) horloge.onclick = () => {
+        const m = M.obtenir(id);
+        M.lancerDansHorloge(m && !m.fini ? M.restant(m) : t.secondes, `${r.meta.titre} · étape ${i + 1}`);
+      };
     }
     tic();
   }
@@ -171,43 +136,45 @@ export function cuisine(root, { params, query }) {
     return m ? `${m[1][0].toUpperCase()}${m[1].slice(1)} · ${t.texte}` : t.texte;
   }
 
+  // Met à jour les temps affichés (appelé toutes les demi-secondes).
   function tic() {
-    const reste = minuteur.restant();
-    if (minuteur.enCours && reste === 0) {
-      minuteur.pause(); minuteur.fini = true; sonnerie();
-      if (minuteur.etape !== i) { rendreEtape(); return; }
-    }
-    corps.querySelectorAll('[data-temps]').forEach(el => { el.textContent = fmtLong(minuteur.restant()); });
-    const mini = corps.querySelector('#mini');
-    if (mini) mini.classList.toggle('fini', minuteur.fini);
+    corps.querySelectorAll('.minuteur-mini').forEach(b => {
+      const m = M.obtenir(b.dataset.id);
+      if (!m) return;
+      b.classList.toggle('fini', m.fini);
+      b.classList.toggle('pause', !m.fini && !M.enCours(m));
+      b.querySelector('.temps').textContent = m.fini ? 'Terminé !' : fmtLong(M.restant(m));
+    });
     const bloc = corps.querySelector('#minuteur');
-    if (!bloc) return;
-    const actif = minuteur.slug === r.slug && minuteur.etape === i;
+    if (!bloc || !courant.id) return;
+    const m = M.obtenir(courant.id);
     const defaut = courant.timers[choixDuree];
-    const frac = actif && minuteur.total ? minuteur.restant() / minuteur.total : 1;
-    const affiche = actif ? minuteur.restant() : defaut?.secondes || 0;
+    const affiche = m ? M.restant(m) : defaut.secondes;
     const tBloc = bloc.querySelector('#t-bloc');
     tBloc.textContent = fmtLong(affiche);
     tBloc.classList.toggle('long', affiche >= 3600);
-    bloc.querySelector('.val').style.strokeDashoffset = String(100 - frac * 100);
-    bloc.classList.toggle('fini', actif && minuteur.fini);
-    bloc.querySelector('#lib').textContent = actif && minuteur.fini ? 'Terminé !'
-      : (actif ? minuteur.label : defaut ? libelle(courant.s, defaut) : 'Minuteur');
-    const lecture = bloc.querySelector('#m-lecture');
-    const enCours = actif && minuteur.enCours;
-    lecture.innerHTML = enCours ? `${icon('pause')}<span class="sr">Pause</span>` : `${icon(minuteur.fini ? 'reset' : 'play')}<span class="sr">${minuteur.fini ? 'Relancer' : 'Démarrer'}</span>`;
+    bloc.querySelector('.val').style.strokeDashoffset = String(100 - (m && m.total ? affiche / m.total : 1) * 100);
+    bloc.classList.toggle('fini', !!m?.fini);
+    bloc.querySelector('#lib').textContent = m?.fini ? 'Terminé !' : (m ? m.label : libelle(courant.s, defaut));
+    const enCours = M.enCours(m);
+    bloc.querySelector('#m-lecture').innerHTML = enCours ? `${icon('pause')}<span class="sr">Pause</span>`
+      : `${icon(m?.fini ? 'reset' : 'play')}<span class="sr">${m?.fini ? 'Relancer' : 'Démarrer'}</span>`;
+    corps.querySelector('#m-reset').hidden = !m;
   }
 
+  // Un minuteur lancé, arrêté ou terminé (ici ou depuis une autre étape) : on redessine.
+  const desabonner = M.surChangement(() => rendreEtape());
   const intervalle = setInterval(tic, 500);
 
   // Chaque étape a sa propre entrée d'historique : le bouton retour d'Android
   // revient à l'étape précédente ; depuis l'étape 1, il quitte le mode cuisine.
-  const afficher = k => { i = k; choixDuree = 0; rendreEtape(); window.scrollTo(0, 0); };
-  const allerA = k => {
+  const afficher = (k, choix = 0) => { i = k; choixDuree = choix; rendreEtape(); window.scrollTo(0, 0); };
+  let choixApresRetour = 0;
+  const allerA = (k, choix = 0) => {
     k = Math.max(0, Math.min(steps.length - 1, k));
-    if (k < i) { history.go(k - i); return; } // popstate affiche l'étape
+    if (k < i) { choixApresRetour = choix; history.go(k - i); return; } // popstate affiche l'étape
     for (let n = i + 1; n <= k; n++) history.pushState({ cuisine: r.slug, etape: n }, '');
-    if (k !== i) afficher(k);
+    if (k !== i || choix !== choixDuree) afficher(k, choix);
   };
   let actif = true; // passe à false quand la vue est quittée
   const quitter = () => {
@@ -220,7 +187,7 @@ export function cuisine(root, { params, query }) {
     if (i + d >= steps.length) { sessionStorage.removeItem(cle); quitter(); return; }
     allerA(i + d);
   };
-  const surRetour = e => { if (e.state?.cuisine === r.slug) afficher(e.state.etape); };
+  const surRetour = e => { if (e.state?.cuisine === r.slug) { afficher(e.state.etape, choixApresRetour); choixApresRetour = 0; } };
   window.addEventListener('popstate', surRetour);
   if (history.state?.cuisine === r.slug) {
     i = Math.min(history.state.etape, steps.length - 1); // page rechargée : l'historique existe déjà
@@ -232,8 +199,8 @@ export function cuisine(root, { params, query }) {
   root.querySelector('#prec').onclick = () => aller(-1);
   root.querySelector('#suiv').onclick = () => aller(1);
   root.querySelector('#fermer').onclick = () => {
-    if (minuteur.enCours && minuteur.slug === r.slug && !confirm('Un minuteur est en cours. Quitter quand même ?')) return;
-    if (minuteur.slug === r.slug) minuteur.regler(null, -1, 0, '');
+    const n = M.deRecette(r.slug).filter(M.enCours).length;
+    if (n) toast(`${n > 1 ? `${n} minuteurs continuent` : 'Le minuteur continue'} (notification et retour en mode cuisine).`, 4000);
     quitter();
   };
 
@@ -259,6 +226,7 @@ export function cuisine(root, { params, query }) {
 
   return () => {
     actif = false;
+    desabonner();
     clearInterval(intervalle);
     document.removeEventListener('visibilitychange', surVisibilite);
     document.removeEventListener('keydown', clavier);

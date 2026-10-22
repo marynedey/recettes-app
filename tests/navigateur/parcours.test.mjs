@@ -78,10 +78,11 @@ async function fauxGitHub(route) {
 
 let navigateur, ctx, page, erreurs;
 
-async function nouvellePage({ configure = true } = {}) {
-  ctx = await navigateur.newContext({ ...devices['Pixel 7'], locale: 'fr-FR', serviceWorkers: 'allow' });
+async function nouvellePage({ configure = true, horloge = false } = {}) {
+  ctx = await navigateur.newContext({ ...devices['Pixel 7'], locale: 'fr-FR', serviceWorkers: 'allow', permissions: ['notifications'] });
   await ctx.route('https://api.github.com/**', fauxGitHub);
   page = await ctx.newPage();
+  if (horloge) await page.clock.install(); // temps simulé : on avance de plusieurs minutes d'un coup
   erreurs = [];
   page.on('pageerror', e => erreurs.push(e.message));
   await page.goto(BASE);
@@ -117,7 +118,8 @@ before(async () => {
   });
   await new Promise(ok => serveur.listen(0, ok));
   BASE = `http://localhost:${serveur.address().port}/`;
-  navigateur = await chromium.launch();
+  // Chromium complet (et non la version « headless shell ») : il gère les notifications.
+  navigateur = await chromium.launch({ channel: 'chromium' });
 });
 
 after(async () => {
@@ -311,6 +313,20 @@ test('photos : plusieurs photos, carrousel, photo principale et retrait', async 
   assert.equal(await page.locator('.diapo').count(), 2);
   assert.equal(await page.locator('.points span').count(), 2);
 
+  // Toucher la photo l'agrandit ; on glisse à la suivante ; le retour Android ferme sans quitter la fiche.
+  await page.click('.fiche-hero', { position: { x: 200, y: 150 } });
+  await page.locator('.visionneuse .v-photo img').nth(1).waitFor({ state: 'attached' });
+  assert.equal(await page.textContent('.v-compteur'), '1 / 2');
+  await page.evaluate(() => { const d = document.querySelector('.v-defile'); d.scrollLeft = d.clientWidth; });
+  await page.waitForTimeout(200);
+  assert.equal(await page.textContent('.v-compteur'), '2 / 2');
+  await page.goBack();
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('.visionneuse').count(), 0);
+  assert.match(page.url(), /#\/recette\/gateau$/);
+  await page.click('.fiche-hero #fav');
+  assert.equal(await page.locator('.visionneuse').count(), 0, 'les boutons sur la photo n\'ouvrent pas la visionneuse');
+
   // Ajout d'une recette avec deux photos choisies d'un coup dans la galerie.
   await page.goto(BASE + '#/ajouter?manuel=1');
   await page.fill('[name=titre]', 'Tarte');
@@ -341,6 +357,60 @@ test('photos : plusieurs photos, carrousel, photo principale et retrait', async 
   await page.waitForTimeout(300);
   assert.deepEqual(ecritures.filter(w => w.methode === 'DELETE').map(w => w.chemin), ['photos/gateau.jpg']);
   assert.ok(ecritures.findIndex(w => w.chemin === 'recettes/gateau.md') < ecritures.findIndex(w => w.methode === 'DELETE'), 'la photo est supprimée après l\'enregistrement de la recette');
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('minuteurs : plusieurs à la fois, chacun à son étape, notifications', async () => {
+  depotInitial();
+  await nouvellePage({ horloge: true });
+  const notifications = () => page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications())
+    .map(n => ({ tag: n.tag, titre: n.title, texte: n.body })));
+  await page.goto(BASE + '#/cuisine/tarte-tatin');
+  await page.evaluate(() => navigator.serviceWorker.ready);
+
+  // Étape 1 : « réserver au frais 30 min ».
+  assert.equal(await page.textContent('#t-bloc'), '30:00');
+  await page.click('#m-lecture');
+  // Étape 6 : « cuire … 12 min », lancé alors que celui de l'étape 1 tourne encore.
+  for (let k = 0; k < 5; k++) await page.click('#suiv');
+  assert.match(await etape(), /Étape 6/);
+  assert.equal(await page.textContent('#t-bloc'), '12:00', 'le minuteur de l\'étape 6 part de sa propre durée');
+  await page.click('#m-lecture');
+  await page.clock.fastForward('00:05');
+  assert.match(await page.textContent('#t-bloc'), /^11:5\d$/);
+  assert.match(await page.textContent('#lib'), /12 min/);
+  const autre = page.locator('.minuteur-mini');
+  assert.equal(await autre.count(), 1, 'le minuteur de l\'étape 1 reste visible');
+  assert.match(await autre.textContent(), /Étape 1.*29:5\d/s);
+
+  // 12 min plus tard : seul celui de l'étape 6 est terminé.
+  await page.clock.fastForward('12:00');
+  await page.waitForTimeout(300);
+  assert.match(await page.textContent('#lib'), /Terminé/);
+  assert.match(await autre.textContent(), /Étape 1.*17:5\d/s);
+
+  const notifs = await notifications();
+  assert.equal(notifs.length, 2, JSON.stringify(notifs));
+  const n6 = notifs.find(n => n.tag === 'tarte-tatin|5|0');
+  const n1 = notifs.find(n => n.tag === 'tarte-tatin|0|0');
+  assert.match(n6.titre, /étape 6 : c'est prêt/);
+  assert.match(n1.titre, /étape 1/);
+  assert.match(n1.texte, /prêt à \d\d:\d\d/);
+
+  // Toucher le minuteur de l'étape 1 y ramène ; il survit à un rechargement de l'app.
+  await autre.click();
+  assert.match(await etape(), /Étape 1/);
+  assert.match(await page.textContent('#t-bloc'), /^17:5\d$/);
+  await page.reload();
+  await page.locator('#t-bloc').waitFor();
+  assert.match(await page.textContent('#t-bloc'), /^17:5\d$/);
+
+  // Réinitialiser supprime le minuteur et sa notification.
+  await page.click('#m-reset');
+  assert.equal(await page.textContent('#t-bloc'), '30:00');
+  await page.waitForTimeout(200);
+  assert.deepEqual((await notifications()).map(n => n.tag), ['tarte-tatin|5|0']);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

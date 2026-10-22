@@ -1,9 +1,9 @@
 // Service worker : met l'application en cache pour un usage hors ligne.
 // Les recettes et photos sont gérées par l'app elle-même (localStorage + Cache API).
-const VERSION = 'mr-app-1.3.0'; // = version de l'app (js/views/reglages.js)
+const VERSION = 'mr-app-1.5.0'; // = version de l'app (js/views/reglages.js)
 const FICHIERS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/format.js', 'js/github.js', 'js/store.js', 'js/ui.js',
+  'js/app.js', 'js/format.js', 'js/github.js', 'js/minuteurs.js', 'js/store.js', 'js/ui.js',
   'js/views/listes.js', 'js/views/fiche.js', 'js/views/cuisine.js', 'js/views/editer.js', 'js/views/reglages.js',
   'fonts/fraunces.woff2', 'fonts/inter.woff2',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-192.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
@@ -39,7 +39,14 @@ self.addEventListener('fetch', e => {
   })());
 });
 
+// Toucher la notification d'un minuteur ramène à l'app, sur le mode cuisine de la recette.
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  e.waitUntil(self.clients.matchAll({ type: 'window' }).then(l => (l[0] ? l[0].focus() : self.clients.openWindow('./'))));
+  const url = new URL(e.notification.data?.url || './', self.registration.scope);
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(fenetres => {
+    const f = fenetres[0];
+    if (!f) return self.clients.openWindow(url.href);
+    f.postMessage({ aller: url.hash });
+    return f.focus();
+  }));
 });

@@ -19,6 +19,7 @@ App de recettes perso, pensée mobile (Android), en français. Maquette validée
 | `js/github.js` | appels API GitHub (arbre, blobs, contents PUT/DELETE) |
 | `js/store.js` | cache local (texte brut des recettes par sha dans `localStorage`, photos dans le Cache API), favoris, historique, imports en attente |
 | `js/ui.js` | icônes SVG, visuels/placeholder dégradé, cartes, toast |
+| `js/minuteurs.js` | minuteurs du mode cuisine : plusieurs à la fois (clé `slug|étape|durée`), gardés dans `localStorage`, alarme, une notification par minuteur (heure de fin + temps restant), lancement dans l'Horloge Android (intention `SET_TIMER`) |
 | `js/app.js` | routeur par ancre (`#/`, `#/recettes`, `#/favoris`, `#/courses`, `#/recette/<slug>`, `#/cuisine/<slug>?p=<portions>`, `#/ajouter`, `#/modifier/<slug>`, `#/reglages`) |
 | `js/views/*.js` | un module par écran |
 
@@ -73,7 +74,7 @@ Orange tiré de l'icône (marmite, `icons/`) : accent `#C9480A` pour boutons, li
 
 ## Tests
 - `npm test` : tests unitaires (format, quantités, minuteurs, ingrédients d'une étape, jeton envoyé à GitHub, versions et fichiers du service worker).
-- `npm run test:navigateur` : parcours complets dans Chromium (format téléphone) avec un faux GitHub qui refuse toute requête sans le bon jeton : réglages, accueil, fiche (portions, « à ajuster », glisser), mode cuisine (retour, minuteur), ajout manuel (contenu du fichier écrit), import, hors ligne. Nécessite `npm ci` (Playwright, utilisé uniquement pour les tests).
+- `npm run test:navigateur` : parcours complets dans Chromium (format téléphone) avec un faux GitHub qui refuse toute requête sans le bon jeton : réglages, accueil, fiche (portions, « à ajuster », glisser), photos (carrousel, visionneuse), mode cuisine (retour, plusieurs minuteurs avec horloge simulée et notifications), débordement avec texte agrandi, ajout manuel (contenu du fichier écrit), import, hors ligne. Nécessite `npm ci` (Playwright, utilisé uniquement pour les tests) ; utilise le Chromium complet (`channel: 'chromium'`), la version « headless shell » refusant les notifications.
 - `npm run verifier-version` : échoue si l'app a changé sans que la version augmente.
 - Le workflow `.github/workflows/tests.yml` lance les trois sur chaque PR (contrôles « Tests unitaires », « Parcours navigateur », « Version augmentée ») ; ils sont obligatoires pour fusionner dans `main`.
 - Pour voir l'UI en local : `python3 -m http.server` puis http://localhost:8000.

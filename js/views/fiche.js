@@ -2,7 +2,7 @@
 
 import * as store from '../store.js';
 import { formatQty, formatDuree, flatSteps, nonRecalcule, listePhotos } from '../format.js';
-import { esc, icon, visuel, chargerPhotos, tempsTotal, texteEtape, texteNotes, retour, toast } from '../ui.js';
+import { esc, icon, visuel, chargerPhotos, ouvrirVisionneuse, tempsTotal, texteEtape, texteNotes, retour, toast } from '../ui.js';
 
 const lireEtat = slug => JSON.parse(sessionStorage.getItem('mr.fiche.' + slug) || 'null');
 const ecrireEtat = (slug, e) => sessionStorage.setItem('mr.fiche.' + slug, JSON.stringify(e));
@@ -60,6 +60,15 @@ export function fiche(root, { params }) {
 
   // Plusieurs photos : on les fait défiler en glissant, les points suivent.
   const carrousel = root.querySelector('#carrousel');
+  if (photos.length) {
+    const hero = root.querySelector('.fiche-hero');
+    hero.classList.add('agrandissable');
+    hero.addEventListener('click', e => {
+      if (e.target.closest('.actions')) return; // retour, modifier, favori
+      const k = carrousel ? Math.round(carrousel.scrollLeft / carrousel.clientWidth) : 0;
+      ouvrirVisionneuse(photos, k);
+    });
+  }
   if (carrousel) {
     carrousel.querySelectorAll('.diapo').forEach(async d => {
       const url = await store.photoUrlChemin(d.dataset.chemin);

@@ -1,6 +1,6 @@
 // Petites aides d'affichage : échappement, icônes, visuels, toast.
 
-import { photoUrl } from './store.js';
+import { photoUrl, photoUrlChemin } from './store.js';
 import { formatDuree, detectTimers, listePhotos } from './format.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -121,4 +121,42 @@ export function toast(msg, ms = 2800) {
 export function retour(defaut = '#/') {
   if (history.length > 1 && sessionStorage.getItem('mr.nav')) history.back();
   else location.hash = defaut;
+}
+
+/**
+ * Visionneuse plein écran : photos entières sur fond noir, on glisse de l'une
+ * à l'autre, on pince pour zoomer. Le bouton retour d'Android la ferme.
+ */
+export function ouvrirVisionneuse(chemins, depart = 0) {
+  const el = document.createElement('div');
+  el.className = 'visionneuse';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', 'Photos');
+  el.innerHTML = `<div class="v-defile">${chemins.map(() => '<div class="v-photo"></div>').join('')}</div>
+    <button class="btn-rond plein v-fermer" aria-label="Fermer">${icon('x')}</button>
+    ${chemins.length > 1 ? `<div class="v-compteur" aria-live="polite"></div>` : ''}`;
+  document.body.appendChild(el);
+  document.body.classList.add('sans-defilement');
+  const defile = el.querySelector('.v-defile');
+  const compteur = el.querySelector('.v-compteur');
+  const majCompteur = () => {
+    if (compteur) compteur.textContent = `${Math.round(defile.scrollLeft / defile.clientWidth) + 1} / ${chemins.length}`;
+  };
+  el.querySelectorAll('.v-photo').forEach(async (d, i) => {
+    const url = await photoUrlChemin(chemins[i]);
+    if (url && d.isConnected) d.innerHTML = `<img src="${url}" alt="Photo ${i + 1}">`;
+  });
+  defile.scrollLeft = depart * defile.clientWidth;
+  majCompteur();
+  defile.addEventListener('scroll', majCompteur, { passive: true });
+
+  // Une entrée d'historique : le retour Android ferme la visionneuse au lieu de quitter la fiche.
+  history.pushState({ visionneuse: true }, '');
+  const fermer = () => {
+    window.removeEventListener('popstate', fermer);
+    document.body.classList.remove('sans-defilement');
+    el.remove();
+  };
+  window.addEventListener('popstate', fermer);
+  el.querySelector('.v-fermer').onclick = () => history.back();
 }
