@@ -27,6 +27,7 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
         <label class="champ"><span>Personnes</span><input name="portions" type="number" inputmode="numeric" min="1" value="${esc(m.portions)}"></label>
         <label class="champ"><span>Prépa (min)</span><input name="preparation" type="number" inputmode="numeric" min="0" value="${esc(m.preparation)}"></label>
         <label class="champ"><span>Cuisson (min)</span><input name="cuisson" type="number" inputmode="numeric" min="0" value="${esc(m.cuisson)}"></label>
+        <label class="champ"><span>Repos (min)</span><input name="repos" type="number" inputmode="numeric" min="0" value="${esc(m.repos)}"><small>Pousse, frigo, marinade…</small></label>
       </div>
       <div class="champ"><span>Difficulté</span>
         <div class="choix">${DIFFICULTES.map(d => `<label><input type="radio" name="difficulte" value="${d}" ${d === (m.difficulte || 'Facile') ? 'checked' : ''}><span>${d}</span></label>`).join('')}</div></div>
@@ -79,6 +80,7 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
       portions: num('portions') || '',
       preparation: num('preparation'),
       cuisson: num('cuisson'),
+      repos: num('repos'),
       difficulte: d.get('difficulte'),
       source: d.get('source').trim(),
     });

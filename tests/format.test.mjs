@@ -50,6 +50,7 @@ test('cinnamon rolls', () => {
   const r = parseRecipe(readFileSync(DIR + 'cinnamon-rolls.md', 'utf8'), 'recettes/cinnamon-rolls.md');
   assert.equal(r.slug, 'cinnamon-rolls');
   assert.equal(r.meta.portions, 12);
+  assert.equal(r.meta.repos, 80);
   assert.deepEqual(r.ingredients.map(g => g.group), ['Pour la pâte à brioche', 'Pour la garniture', 'Pour le glaçage']);
   const steps = flatSteps(r);
   assert.equal(steps.length, 18);

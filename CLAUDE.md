@@ -33,6 +33,7 @@ tags: [classique, pommes]
 portions: 6
 preparation: 20           # minutes
 cuisson: 55               # minutes
+repos: 30                 # minutes (pousse, frigo, marinade… facultatif)
 difficulte: Facile        # Facile | Moyen | Difficile
 photo: photos/tarte-tatin.jpg
 source: https://…         # lien d'origine si import

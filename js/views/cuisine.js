@@ -185,7 +185,10 @@ export function cuisine(root, { params, query }) {
     const actif = minuteur.slug === r.slug && minuteur.etape === i;
     const defaut = courant.timers[choixDuree];
     const frac = actif && minuteur.total ? minuteur.restant() / minuteur.total : 1;
-    bloc.querySelector('#t-bloc').textContent = fmtLong(actif ? minuteur.restant() : defaut?.secondes || 0);
+    const affiche = actif ? minuteur.restant() : defaut?.secondes || 0;
+    const tBloc = bloc.querySelector('#t-bloc');
+    tBloc.textContent = fmtLong(affiche);
+    tBloc.classList.toggle('long', affiche >= 3600);
     bloc.querySelector('.val').style.strokeDashoffset = String(100 - frac * 100);
     bloc.classList.toggle('fini', actif && minuteur.fini);
     bloc.querySelector('#lib').textContent = actif && minuteur.fini ? 'Terminé !'

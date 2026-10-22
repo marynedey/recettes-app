@@ -5,6 +5,7 @@ tags: [brioche, cannelle, goûter]
 portions: 12
 preparation: 45
 cuisson: 22
+repos: 80
 difficulte: Moyen
 ajoutee: 2026-10-22
 ---

@@ -2,7 +2,7 @@
 
 import * as store from '../store.js';
 import { formatQty, formatDuree, flatSteps } from '../format.js';
-import { esc, icon, visuel, chargerPhotos, texteEtape, texteNotes, retour, toast } from '../ui.js';
+import { esc, icon, visuel, chargerPhotos, tempsTotal, texteEtape, texteNotes, retour, toast } from '../ui.js';
 
 const lireEtat = slug => JSON.parse(sessionStorage.getItem('mr.fiche.' + slug) || 'null');
 const ecrireEtat = (slug, e) => sessionStorage.setItem('mr.fiche.' + slug, JSON.stringify(e));
@@ -40,8 +40,10 @@ export function fiche(root, { params }) {
       <div class="stats">
         <div><b>${m.preparation ? esc(formatDuree(+m.preparation)) : '–'}</b><span>Préparation</span></div>
         <div><b>${m.cuisson ? esc(formatDuree(+m.cuisson)) : '–'}</b><span>Cuisson</span></div>
+        ${m.repos ? `<div><b>${esc(formatDuree(+m.repos))}</b><span>Repos</span></div>` : ''}
         <div><b>${esc(m.difficulte || '–')}</b><span>Niveau</span></div>
       </div>
+      ${m.repos && tempsTotal(r) ? `<p class="total">Temps total : <b>${esc(formatDuree(tempsTotal(r)))}</b></p>` : ''}
       <div class="segments" role="tablist">
         <button role="tab" data-o="ingredients">Ingrédients</button>
         <button role="tab" data-o="etapes">Étapes</button>

@@ -181,12 +181,14 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 }
 .surtitre { color: var(--accent); font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
 .fiche-feuille h1 { font-size: 32px; font-weight: 600; line-height: 1.15; margin: 6px 0 18px; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--carte); border: 1px solid var(--bordure); border-radius: 16px; padding: 14px 0; }
+.stats { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--carte); border: 1px solid var(--bordure); border-radius: 16px; padding: 14px 0; }
 .stats div { text-align: center; }
 .stats div + div { border-left: 1px solid var(--bordure); }
 .stats b { display: block; font-size: 17px; font-weight: 600; }
 .stats span { color: var(--gris); font-size: 13px; }
 
+.total { margin: 10px 0 0; text-align: center; color: var(--gris); font-size: 14px; }
+.total b { color: var(--encre); font-weight: 600; }
 .segments { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--doux); border-radius: 14px; padding: 5px; margin: 20px 0 6px; }
 .segments button { height: 42px; border-radius: 10px; color: var(--gris); font-weight: 500; }
 .segments button[aria-selected="true"] { background: var(--carte); color: var(--encre); box-shadow: 0 1px 3px rgba(43, 33, 24, .08); font-weight: 600; }
@@ -259,6 +261,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .anneau .fond-anneau { stroke: var(--doux); }
 .anneau .val { stroke: var(--minuteur); stroke-linecap: round; transition: stroke-dashoffset .4s linear; }
 .anneau .centre { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 22px; }
+.anneau .temps.long { font-size: 25px; }
 .anneau .temps { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .anneau .lib { font-size: 12px; color: var(--gris); line-height: 1.2; }
 .minuteur.fini { border-color: var(--accent); animation: sonne 1s ease-in-out infinite; }
@@ -289,7 +292,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 }
 .champ textarea { min-height: 150px; resize: vertical; line-height: 1.5; }
 .champ input:focus, .champ select:focus, .champ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(196, 85, 45, .12); }
-.rangee { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.rangee { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
 .rangee .champ input { padding: 12px 10px; }
 .choix { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; background: var(--doux); padding: 5px; border-radius: 14px; }
 .choix label { position: relative; }
