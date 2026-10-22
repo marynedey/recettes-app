@@ -71,7 +71,11 @@ Fond `#F6F0E6`, cartes `#FFFBF4`, encre `#2B2118`, texte secondaire `#8A7B6B`, b
 - `X` (1.x → 2.0.0) : changement incompatible (ex. format des recettes à migrer).
 
 ## Tests
-`node --test tests/*.test.mjs` (format, quantités, minuteurs, aller-retour des recettes de `tests/fixtures/`, jeton envoyé à GitHub, versions et fichiers du service worker). Pour tester l'UI en local : `python3 -m http.server` puis http://localhost:8000.
+- `npm test` : tests unitaires (format, quantités, minuteurs, ingrédients d'une étape, jeton envoyé à GitHub, versions et fichiers du service worker).
+- `npm run test:navigateur` : parcours complets dans Chromium (format téléphone) avec un faux GitHub qui refuse toute requête sans le bon jeton : réglages, accueil, fiche (portions, « à ajuster », glisser), mode cuisine (retour, minuteur), ajout manuel (contenu du fichier écrit), import, hors ligne. Nécessite `npm ci` (Playwright, utilisé uniquement pour les tests).
+- `npm run verifier-version` : échoue si l'app a changé sans que la version augmente.
+- Le workflow `.github/workflows/tests.yml` lance les trois sur chaque PR (contrôles « Tests unitaires », « Parcours navigateur », « Version augmentée ») ; ils sont obligatoires pour fusionner dans `main`.
+- Pour voir l'UI en local : `python3 -m http.server` puis http://localhost:8000.
 
 ## Plus tard
 Partage foyer, liste de courses, favoris synchronisés, import IA optionnel.
