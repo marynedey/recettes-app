@@ -20,6 +20,7 @@ App de recettes perso, pensée mobile (Android), en français. Maquette validée
 | `js/store.js` | cache local (texte brut des recettes par sha dans `localStorage`, photos dans le Cache API), favoris, historique, imports en attente |
 | `js/ui.js` | icônes SVG, visuels/placeholder dégradé, cartes, toast |
 | `js/minuteurs.js` | minuteurs du mode cuisine : plusieurs à la fois (clé `slug|étape|durée`), gardés dans `localStorage`, alarme, une notification par minuteur (heure de fin + temps restant), lancement dans l'Horloge Android (intention `SET_TIMER`) |
+| `js/courses.js` | liste de courses : recettes prévues + nombre de personnes, ingrédients additionnés (g/kg, mL/cL/L, c. à café/soupe ; noms regroupés sans « fondu », « froid »…, œ/oe, pluriels), rayons, « j'en ai déjà » → ce qui manque ; gardée dans `localStorage` (`mr.courses`) |
 | `js/app.js` | routeur par ancre (`#/`, `#/recettes`, `#/favoris`, `#/courses`, `#/recette/<slug>`, `#/cuisine/<slug>?p=<portions>`, `#/ajouter`, `#/modifier/<slug>`, `#/reglages`) |
 | `js/views/*.js` | un module par écran |
 
@@ -80,4 +81,4 @@ Orange tiré de l'icône (marmite, `icons/`) : accent `#C9480A` pour boutons, li
 - Pour voir l'UI en local : `python3 -m http.server` puis http://localhost:8000.
 
 ## Plus tard
-Partage foyer, liste de courses, favoris synchronisés, import IA optionnel.
+Partage foyer (dont liste de courses partagée), favoris synchronisés, import IA optionnel.

@@ -376,6 +376,46 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .panneau { flex: 0 0 100%; padding: 0 20px; scroll-snap-align: start; scroll-snap-stop: always; min-height: 45vh; }
 .retour-tete { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 
+/* ---------- courses ---------- */
+.barre-bas .bouton.bouton-courses { flex: 0 0 56px; padding: 0; box-shadow: none; }
+.prevues { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.prevue { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--carte); border: 1px solid var(--bordure); border-radius: 14px; }
+.pv-titre { flex: 1; min-width: 0; color: var(--encre); font-weight: 600; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-unite { color: var(--gris); font-size: 13px; width: 30px; }
+.pv-retirer { width: 32px; height: 32px; display: grid; place-items: center; color: var(--gris); }
+.stepper.petit { gap: 8px; }
+.stepper.petit button { width: 32px; height: 32px; }
+.stepper.petit b { min-width: 26px; font-size: 16px; }
+.rayon { font-family: var(--sans); font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--gris); margin: 20px 0 6px; }
+.articles { background: var(--carte); border: 1px solid var(--bordure); border-radius: 16px; overflow: hidden; }
+.article + .article { border-top: 1px solid var(--bordure); }
+.art-ligne { display: flex; align-items: center; }
+.art-case { padding: 12px 4px 12px 14px; cursor: pointer; }
+.art-case input { position: absolute; opacity: 0; }
+.art-case input:checked + .case { background: var(--accent); border-color: var(--accent); }
+.art-case input:checked + .case svg.i { opacity: 1; }
+.art-corps { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 12px 14px 12px 8px; text-align: left; }
+.art-nom { flex: 1; min-width: 0; font-size: 16px; }
+.art-qte { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.art-qte small { display: block; font-weight: 500; font-size: 12px; color: var(--brun); }
+.article.fait .art-nom, .article.fait .art-qte { color: var(--gris); text-decoration: line-through; }
+.article.fait .art-qte small { text-decoration: none; }
+.art-detail { padding: 0 14px 14px 52px; font-size: 14px; color: var(--gris); }
+.art-detail ul { margin: 0 0 10px; padding-left: 16px; }
+.art-dispo { display: flex; align-items: center; gap: 8px; color: var(--encre); font-weight: 500; }
+.art-dispo input { width: 90px; border: 1px solid var(--bordure); border-radius: 10px; padding: 8px 10px; background: var(--fond); font-size: 16px; }
+.actions-courses { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; }
+.actions-courses .bouton { flex: 1; }
+.feuille-fond { position: fixed; inset: 0; z-index: 55; background: rgba(43, 33, 24, .45); display: flex; align-items: flex-end; justify-content: center; }
+.feuille { width: 100%; max-width: 560px; max-height: 85dvh; display: flex; flex-direction: column; background: var(--fond); border-radius: 24px 24px 0 0; padding: 18px 20px calc(var(--bas) + 18px); }
+.feuille-tete { display: flex; align-items: center; justify-content: space-between; }
+.feuille-tete h2 { font-size: 22px; }
+.feuille .recherche { margin: 14px 0 10px; }
+.f-liste { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.f-recette { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px; border-radius: 14px; background: var(--carte); border: 1px solid var(--bordure); text-align: left; font-size: 16px; }
+.f-recette.pris { border-color: var(--accent); background: var(--pastel); }
+.f-recette.pris svg.i { color: var(--accent); }
+
 /* ---------- visionneuse ---------- */
 .fiche-hero.agrandissable { cursor: zoom-in; }
 .visionneuse { position: fixed; inset: 0; z-index: 60; background: #000; }

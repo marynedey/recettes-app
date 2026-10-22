@@ -2,7 +2,8 @@
 
 import { icon, toast } from './ui.js';
 import * as store from './store.js';
-import { accueil, listeRecettes, favorisVue, courses } from './views/listes.js';
+import { accueil, listeRecettes, favorisVue } from './views/listes.js';
+import { courses } from './views/courses.js';
 import { fiche } from './views/fiche.js';
 import { cuisine } from './views/cuisine.js';
 import { editer, ajouter } from './views/editer.js';

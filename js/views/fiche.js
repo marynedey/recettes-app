@@ -2,6 +2,7 @@
 
 import * as store from '../store.js';
 import { formatQty, formatDuree, flatSteps, nonRecalcule, listePhotos } from '../format.js';
+import { ajouterAuxCourses } from './courses.js';
 import { esc, icon, visuel, chargerPhotos, ouvrirVisionneuse, tempsTotal, texteEtape, texteNotes, retour, toast } from '../ui.js';
 
 const lireEtat = slug => JSON.parse(sessionStorage.getItem('mr.fiche.' + slug) || 'null');
@@ -58,7 +59,10 @@ export function fiche(root, { params }) {
         <div class="panneau" role="tabpanel" data-o="notes"></div>
       </div>
     </div>
-    ${steps.length ? `<div class="barre-bas"><div><a class="bouton" id="cuisiner" href="#/cuisine/${encodeURIComponent(r.slug)}">${icon('play')}Lancer le mode cuisine</a></div></div>` : ''}`;
+    <div class="barre-bas"><div>
+      ${r.ingredients.length ? `<button class="bouton secondaire bouton-courses" id="aux-courses" aria-label="Ajouter aux courses">${icon('cart')}</button>` : ''}
+      ${steps.length ? `<a class="bouton" id="cuisiner" href="#/cuisine/${encodeURIComponent(r.slug)}">${icon('play')}Lancer le mode cuisine</a>` : ''}
+    </div></div>`;
 
   chargerPhotos(root, () => r);
 
@@ -93,6 +97,7 @@ export function fiche(root, { params }) {
     fav.setAttribute('aria-pressed', on);
     toast(on ? 'Ajoutée aux favoris' : 'Retirée des favoris');
   };
+  root.querySelector('#aux-courses')?.addEventListener('click', () => ajouterAuxCourses(r, etat.portions));
   const btnCuisine = root.querySelector('#cuisiner');
   const majLien = () => { if (btnCuisine) btnCuisine.href = `#/cuisine/${encodeURIComponent(r.slug)}?p=${etat.portions}`; };
 

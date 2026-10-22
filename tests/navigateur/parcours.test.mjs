@@ -273,7 +273,9 @@ test('hors ligne : l\'app et les recettes restent consultables', async () => {
 test('aucun écran ne déborde en largeur, même avec le texte agrandi (réglage Android)', async () => {
   depotInitial();
   await nouvellePage();
-  const ecrans = ['#/', '#/recettes', '#/recette/cinnamon-rolls', '#/cuisine/cinnamon-rolls', '#/modifier/cinnamon-rolls', '#/ajouter', '#/ajouter?manuel=1', '#/reglages'];
+  // Des courses prévues, pour que l'écran Courses ait une liste à afficher.
+  await page.evaluate(() => localStorage.setItem('mr.courses', JSON.stringify({ prevues: [{ slug: 'cinnamon-rolls', portions: 12 }, { slug: 'risotto-aux-champignons', portions: 4 }], articles: {} })));
+  const ecrans = ['#/', '#/recettes', '#/recette/cinnamon-rolls', '#/cuisine/cinnamon-rolls', '#/modifier/cinnamon-rolls', '#/ajouter', '#/ajouter?manuel=1', '#/reglages', '#/courses'];
   for (const ecran of ecrans) {
     await page.goto(BASE + ecran);
     await page.reload(); // repart de tailles de police normales
@@ -438,6 +440,54 @@ test('minuteurs : plusieurs à la fois, bandeau, notifications fidèles, fin de 
   await page.waitForTimeout(300);
   assert.deepEqual(await notifications(), [], 'plus aucune notification après la fin de la recette');
   assert.equal(await page.evaluate(() => localStorage.getItem('mr.minuteurs')), '{}');
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('courses : recettes prévues, liste additionnée par rayon, cases et « j\'en ai déjà »', async () => {
+  depotInitial();
+  await nouvellePage();
+  const article = nom => page.locator('.article', { has: page.locator('.art-nom', { hasText: new RegExp(`^${nom}$`) }) });
+
+  // Depuis une fiche : la recette part aux courses avec le nombre de personnes affiché.
+  await page.goto(BASE + '#/recette/tarte-tatin');
+  await page.click('#plus'); await page.click('#plus');
+  await page.click('#aux-courses');
+  await page.goto(BASE + '#/courses');
+  assert.match(await page.locator('.prevue').textContent(), /Tarte tatin.*8.*pers/s);
+
+  // Depuis l'onglet Courses : choix dans la liste des recettes.
+  await page.click('#ajouter-recettes');
+  await page.click('.f-recette:has-text("Cinnamon rolls")');
+  await page.click('#f-fermer');
+  assert.equal(await page.locator('.prevue').count(), 2);
+
+  // Farine : 200 g × 8/6 (tatin) + 540 g et 1 c. à soupe (cinnamon rolls).
+  assert.match(await article('Farine').locator('.art-qte').textContent(), /^806,7 g \+ 1 c\. à soupe/);
+  assert.equal(await page.locator('h3.rayon').first().textContent(), 'Fruits et légumes');
+
+  // « J'en ai déjà » : 500 g de farine → il manque 306,7 g.
+  await article('Farine').locator('.art-corps').click();
+  assert.match(await article('Farine').locator('.art-detail').textContent(), /Tarte tatin.*Cinnamon rolls/s);
+  await article('Farine').locator('.art-dispo input').fill('500');
+  await article('Farine').locator('.art-dispo input').press('Enter');
+  await page.locator('.art-dispo input').blur();
+  assert.match(await article('Farine').locator('.art-qte small').textContent(), /il manque 306,7 g/);
+
+  // Cocher : l'article passe en bas, barré ; tout survit à un rechargement.
+  await article('Lait').locator('.art-case').click();
+  assert.match(await article('Lait').getAttribute('class'), /fait/);
+  await page.reload();
+  await page.locator('.article').first().waitFor();
+  assert.match(await article('Lait').getAttribute('class'), /fait/);
+  assert.match(await article('Farine').locator('.art-qte small').textContent(), /il manque 306,7 g/);
+
+  // Changer le nombre de personnes recalcule ; retirer une recette l'enlève de la liste.
+  await page.locator('.prevue', { hasText: 'Tarte tatin' }).locator('[data-d="-1"]').click();
+  assert.match(await article('Farine').locator('.art-qte').textContent(), /^773,4 g/);
+  await page.locator('.prevue', { hasText: 'Cinnamon rolls' }).locator('.pv-retirer').click();
+  assert.equal(await article('Lait').count(), 0);
+  assert.match(await article('Farine').locator('.art-qte').textContent(), /^233,4 g$|^233,4 g/);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

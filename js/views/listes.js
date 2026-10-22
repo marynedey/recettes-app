@@ -147,9 +147,3 @@ export function favorisVue(root) {
       : `<div class="vide"><div class="serif">Pas encore de favoris</div><p>Touchez le ${icon('heart')} sur une recette pour la retrouver ici.</p></div>`}`;
   chargerPhotos(root, store.recette);
 }
-
-export function courses(root) {
-  root.className = 'page';
-  root.innerHTML = `<h1 class="titre-page">Courses</h1>
-    <div class="vide"><div class="serif">Bientôt</div><p>La liste de courses arrivera dans une prochaine version.</p></div>`;
-}
