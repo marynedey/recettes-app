@@ -21,7 +21,7 @@ concurrency:
 jobs:
   unitaires:
     name: Tests unitaires
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,7 +34,8 @@ jobs:
 
   navigateur:
     name: Parcours navigateur
-    runs-on: ubuntu-latest
+    # Version d'Ubuntu fixée : Playwright 1.56 ne gère pas encore ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +51,7 @@ jobs:
   version:
     name: Version augmentée
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
