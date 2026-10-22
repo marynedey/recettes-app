@@ -178,7 +178,6 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .fiche-feuille {
   position: relative; margin-top: -30px; background: var(--fond); border-radius: 28px 28px 0 0;
   padding: 26px 20px calc(var(--bas) + 110px);
-  min-height: 70vh;
 }
 .surtitre { color: var(--accent); font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
 .fiche-feuille h1 { font-size: 32px; font-weight: 600; line-height: 1.15; margin: 6px 0 18px; }
@@ -332,6 +331,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .aide-bloc table { border-collapse: collapse; margin-bottom: 10px; width: calc(100% - 28px); }
 .aide-bloc th, .aide-bloc td { text-align: left; padding: 5px 6px 5px 0; border-bottom: 1px solid var(--bordure); }
 .aide-bloc th { color: var(--gris); font-weight: 500; }
+#contenu { min-height: 55vh; }
 #contenu.glisse-g { animation: depuis-droite .22s ease-out; }
 #contenu.glisse-d { animation: depuis-gauche .22s ease-out; }
 @keyframes depuis-droite { from { opacity: 0; transform: translateX(24px); } }

@@ -131,12 +131,11 @@ export function fiche(root, { params }) {
   };
   onglets.forEach(b => b.addEventListener('click', () => ouvrir(b.dataset.o)));
 
-  // Balayage gauche / droite sur la fiche pour changer d'onglet.
+  // Balayage gauche / droite sous les onglets pour changer d'onglet.
   const ordre = ['ingredients', 'etapes', 'notes'];
   let x0 = null, y0 = null;
-  const feuille = root.querySelector('.fiche-feuille');
-  feuille.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
-  feuille.addEventListener('touchend', e => {
+  contenu.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  contenu.addEventListener('touchend', e => {
     if (x0 === null) return;
     const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
     x0 = null;
