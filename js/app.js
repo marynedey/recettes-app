@@ -107,7 +107,13 @@ async function demarrer() {
     suivreImports();
   }
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW', e));
+    // Nouvelle version installée : on recharge une fois pour l'utiliser tout de suite.
+    const avait = !!navigator.serviceWorker.controller;
+    let recharge = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (avait && !recharge) { recharge = true; location.reload(); }
+    });
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(e => console.warn('SW', e));
   }
 }
 
