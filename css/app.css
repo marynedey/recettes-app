@@ -178,6 +178,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .fiche-feuille {
   position: relative; margin-top: -30px; background: var(--fond); border-radius: 28px 28px 0 0;
   padding: 26px 20px calc(var(--bas) + 110px);
+  min-height: 70vh;
 }
 .surtitre { color: var(--accent); font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
 .fiche-feuille h1 { font-size: 32px; font-weight: 600; line-height: 1.15; margin: 6px 0 18px; }
@@ -317,6 +318,24 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .jeton-ligne input { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: 15px; }
 .jeton-ligne input.masque { -webkit-text-security: disc; text-security: disc; }
 .jeton-ligne .bouton { flex: none; height: auto; }
+.ajuster { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #FBF1D9; color: #8A6510; font-size: 12px; font-weight: 600; vertical-align: 2px; white-space: nowrap; }
+.note-ajuster { margin-top: 14px; }
+.note-ajuster .ajuster { margin-left: 0; }
+.verif { margin: -6px 0 14px; padding: 12px 14px; border-radius: 12px; background: #FBF1D9; color: #6B4E0C; font-size: 14px; }
+.verif ul { margin: 6px 0; padding-left: 20px; }
+.aide-bloc { margin: -6px 0 18px; border: 1px solid var(--bordure); border-radius: 12px; background: var(--carte); font-size: 14px; }
+.aide-bloc summary { padding: 12px 14px; color: var(--accent); font-weight: 600; cursor: pointer; }
+.aide-bloc > :not(summary) { margin-left: 14px; margin-right: 14px; }
+.aide-bloc ul { padding-left: 18px; }
+.aide-bloc li { margin-bottom: 6px; }
+.aide-bloc code { background: var(--doux); padding: 1px 5px; border-radius: 5px; font-size: 13px; white-space: nowrap; }
+.aide-bloc table { border-collapse: collapse; margin-bottom: 10px; width: calc(100% - 28px); }
+.aide-bloc th, .aide-bloc td { text-align: left; padding: 5px 6px 5px 0; border-bottom: 1px solid var(--bordure); }
+.aide-bloc th { color: var(--gris); font-weight: 500; }
+#contenu.glisse-g { animation: depuis-droite .22s ease-out; }
+#contenu.glisse-d { animation: depuis-gauche .22s ease-out; }
+@keyframes depuis-droite { from { opacity: 0; transform: translateX(24px); } }
+@keyframes depuis-gauche { from { opacity: 0; transform: translateX(-24px); } }
 .retour-tete { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 
 /* ---------- toast ---------- */

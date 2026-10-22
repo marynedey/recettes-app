@@ -1,7 +1,7 @@
 // Ajout (import par lien ou saisie manuelle) et modification d'une recette.
 
 import * as store from '../store.js';
-import { CATEGORIES, DIFFICULTES, emptyRecipe, groupsToText, textToGroups, parseIngredient } from '../format.js';
+import { CATEGORIES, DIFFICULTES, emptyRecipe, groupsToText, textToGroups, parseIngredient, nonRecalcule } from '../format.js';
 import { esc, icon, visuel, chargerPhotos, retour, toast } from '../ui.js';
 
 function formulaire(root, r, { titrePage, onAnnuler }) {
@@ -34,9 +34,36 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
       <label class="champ"><span>Ingrédients</span>
         <textarea name="ingredients" rows="8" placeholder="200 g farine&#10;6 pommes Golden&#10;1 pincée fleur de sel">${esc(groupsToText(r.ingredients))}</textarea>
         <small>Un ingrédient par ligne, quantité en premier (« 200 g farine »). Pour des sous-parties, écrire une ligne « ### Pour la pâte ».</small></label>
+      <div id="verif-ing" class="verif" hidden></div>
+      <details class="aide-bloc">
+        <summary>Comment écrire les ingrédients ?</summary>
+        <p>Pour que les quantités soient recalculées selon le nombre de personnes, écrire <b>quantité → unité → ingrédient</b>.</p>
+        <ul>
+          <li><b>Quantités</b> : <code>2</code>, <code>1,5</code>, <code>1/2</code>, <code>½</code>, <code>2-3</code>, <code>2 à 3</code>, <code>un</code>, <code>une</code>, <code>deux</code>…</li>
+          <li><b>Unités</b> : <code>g</code>, <code>kg</code>, <code>mL</code>, <code>cL</code>, <code>L</code>, <code>c. à soupe</code> (ou <code>cuillère à soupe</code>, <code>cs</code>), <code>c. à café</code> (ou <code>cc</code>), pincée, sachet, pot, gousse, tranche, verre, botte, feuille…</li>
+          <li>Pas d'unité ? Ça marche aussi : <code>6 pommes</code>.</li>
+          <li>« de » / « d' » sont acceptés : <code>200 g de farine</code>.</li>
+        </ul>
+        <table>
+          <tr><th>Écrire</th><th>Plutôt que</th></tr>
+          <tr><td><code>200 g farine</code></td><td><code>Farine : 200 g</code></td></tr>
+          <tr><td><code>1 c. à soupe sucre</code></td><td><code>1 cuillère soupe sucre</code></td></tr>
+          <tr><td><code>87 g yaourt</code></td><td><code>1 pot yaourt (87 g)</code></td></tr>
+        </table>
+        <p>Une ligne sans quantité (<code>sel, poivre</code>) est affichée telle quelle. Un nombre placé ailleurs qu'en début de ligne n'est <b>pas recalculé</b> : la fiche le signale par « à ajuster » quand on change le nombre de personnes.</p>
+      </details>
       <label class="champ"><span>Étapes</span>
         <textarea name="etapes" rows="10" placeholder="Préchauffer le four à 180 °C.&#10;Mélanger la farine et le beurre…">${esc(groupsToText(r.etapes))}</textarea>
         <small>Une étape par ligne. Les durées (« 12 min ») deviennent des minuteurs. **mot** pour mettre en valeur.</small></label>
+      <details class="aide-bloc">
+        <summary>Comment écrire les étapes ?</summary>
+        <ul>
+          <li><b>Une étape par ligne</b> : elle s'affiche seule, en grand, en mode cuisine.</li>
+          <li><b>Minuteurs</b> : une durée écrite dans l'étape (<code>12 min</code>, <code>1 h</code>, <code>1h30</code>, <code>20-22 min</code>) propose un minuteur.</li>
+          <li><b>Mise en valeur</b> : <code>**bien serrés**</code> s'affiche en couleur.</li>
+          <li><b>Sous-parties</b> : une ligne <code>### Pour la pâte</code>. Si une sous-partie d'ingrédients porte le même nom, le mode cuisine propose ses ingrédients à chaque étape.</li>
+        </ul>
+      </details>
       <label class="champ"><span>Notes</span><textarea name="notes" rows="4">${esc(r.notes)}</textarea></label>
       <label class="champ"><span>Mots-clés</span><input name="tags" value="${esc((m.tags || []).join(', '))}" placeholder="classique, pommes" autocomplete="off"><small>Séparés par des virgules.</small></label>
       <label class="champ"><span>Source</span><input name="source" value="${esc(m.source)}" placeholder="https://…" autocomplete="off"></label>
@@ -66,6 +93,17 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
   form.querySelector('#f-galerie').addEventListener('change', choisir);
   form.querySelector('#f-camera').addEventListener('change', choisir);
   form.querySelector('#annuler').onclick = onAnnuler;
+
+  // Signale en direct les lignes dont la quantité ne sera pas recalculée.
+  const verif = form.querySelector('#verif-ing');
+  const verifier = () => {
+    const lignes = textToGroups(form.ingredients.value).flatMap(g => g.items).map(parseIngredient).filter(nonRecalcule);
+    verif.hidden = !lignes.length;
+    verif.innerHTML = lignes.length ? `<b>Non recalculé${lignes.length > 1 ? 's' : ''} selon le nombre de personnes :</b>
+      <ul>${lignes.map(l => `<li>${esc(l.raw)}</li>`).join('')}</ul>Mettre la quantité en début de ligne (voir l'aide ci-dessous).` : '';
+  };
+  form.ingredients.addEventListener('input', verifier);
+  verifier();
 
   form.addEventListener('submit', async e => {
     e.preventDefault();

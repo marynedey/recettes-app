@@ -18,6 +18,9 @@ test('ingrédients', () => {
   t('1,5 L de bouillon', 1.5, 'L', 'bouillon');
   t('sel, poivre', null, '', 'sel, poivre');
   t('2 c. à s. d\'huile', 2, 'c. à soupe', 'huile');
+  t('une pincée de sel', 1, 'pincée', 'sel');
+  t('deux oeufs', 2, '', 'oeufs');
+  t('un peu de sel', null, '', 'un peu de sel');
 });
 
 test('recalcul des portions', () => {
@@ -25,6 +28,8 @@ test('recalcul des portions', () => {
   assert.equal(formatQty(parseIngredient('1 pincée sel'), 2), '2 pincées');
   assert.equal(formatQty(parseIngredient('3 oeufs'), 0.5), '1½');
   assert.equal(formatQty(parseIngredient('8 g levure'), 0.5), '4 g');
+  assert.equal(formatQty(parseIngredient('113 g beurre'), 1), '113 g');
+  assert.equal(formatQty(parseIngredient('1,5 L lait'), 1), '1,5 L');
   assert.equal(formatQty(parseIngredient('2-3 c. à soupe crème'), 2), '4–6 c. à soupe');
 });
 
@@ -58,6 +63,27 @@ test('cinnamon rolls', () => {
   assert.deepEqual(glacage, ['sucre glace', 'beurre fondu', 'sucre vanillé']);
   const garniture = ingredientsForStep(r, steps[9]).map(i => i.name);
   assert.ok(garniture.includes('cannelle en poudre') && garniture.includes('sucre roux') && !garniture.includes('sucre glace'));
+});
+
+test('ingrédients d\'une étape : quantité citée et homonymes', () => {
+  const r = parseRecipe(`## Ingrédients
+- 540 g farine
+- 8 g levure
+- 1 c. à soupe sucre (pour la levure)
+- 1 c. à soupe farine (pour la levure)
+- 90 g sucre
+- 100 g beurre froid
+- 50 g beurre demi-sel
+
+## Étapes
+1. Ajouter 1 c. à soupe de sucre, 1 c. à soupe de farine et la levure.
+2. Mélanger la farine et le sucre.
+3. Sabler avec le beurre froid.
+`, 'recettes/t.md');
+  const [e1, e2, e3] = flatSteps(r).map(s => ingredientsForStep(r, s).map(i => i.raw));
+  assert.deepEqual(e1, ['8 g levure', '1 c. à soupe sucre (pour la levure)', '1 c. à soupe farine (pour la levure)']);
+  assert.deepEqual(e2, ['540 g farine', '90 g sucre']);
+  assert.deepEqual(e3, ['100 g beurre froid']);
 });
 
 test('formulaire', () => {

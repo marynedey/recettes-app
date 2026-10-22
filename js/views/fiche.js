@@ -1,7 +1,7 @@
 // Fiche recette : photo, temps, onglets Ingrédients / Étapes / Notes.
 
 import * as store from '../store.js';
-import { formatQty, formatDuree, flatSteps } from '../format.js';
+import { formatQty, formatDuree, flatSteps, nonRecalcule } from '../format.js';
 import { esc, icon, visuel, chargerPhotos, tempsTotal, texteEtape, texteNotes, retour, toast } from '../ui.js';
 
 const lireEtat = slug => JSON.parse(sessionStorage.getItem('mr.fiche.' + slug) || 'null');
@@ -72,16 +72,21 @@ export function fiche(root, { params }) {
   const vues = {
     ingredients() {
       let i = 0;
+      const ajuste = facteur() !== 1;
+      let aAjuster = false;
       const lignes = r.ingredients.map(g => `${g.group ? `<h3 class="groupe-titre">${esc(g.group)}</h3>` : ''}${g.items.map(ing => {
         const k = i++;
+        const badge = ajuste && nonRecalcule(ing);
+        if (badge) aAjuster = true;
         return `<label class="ingredient"><input type="checkbox" data-k="${k}" ${etat.coches.includes(k) ? 'checked' : ''}>
           <span class="case">${icon('check')}</span>
-          <span class="qte">${esc(formatQty(ing, facteur()))}</span><span class="nom">${esc(ing.qty == null ? ing.raw : ing.name)}</span></label>`;
+          <span class="qte">${esc(formatQty(ing, facteur()))}</span><span class="nom">${esc(ing.qty == null ? ing.raw : ing.name)}${badge ? ' <span class="ajuster">à ajuster</span>' : ''}</span></label>`;
       }).join('')}`).join('');
       contenu.innerHTML = `${base ? `<div class="portions"><span>Personnes</span><div class="stepper">
           <button id="moins" aria-label="Moins de personnes">${icon('minus')}</button><b id="nb">${etat.portions}</b>
           <button id="plus" aria-label="Plus de personnes">${icon('plus')}</button></div></div>` : ''}
-        ${lignes || '<div class="vide"><p>Aucun ingrédient.</p></div>'}`;
+        ${lignes || '<div class="vide"><p>Aucun ingrédient.</p></div>'}
+        ${aAjuster ? `<p class="aide note-ajuster"><span class="ajuster">à ajuster</span> : quantité que l'app n'a pas su recalculer pour ${etat.portions} personne${etat.portions > 1 ? 's' : ''}, à multiplier vous-même (×${String(Math.round(facteur() * 100) / 100).replace('.', ',')}).</p>` : ''}`;
       const changer = d => { etat.portions = Math.max(1, etat.portions + d); sauver(); majLien(); vues.ingredients(); };
       contenu.querySelector('#moins')?.addEventListener('click', () => changer(-1));
       contenu.querySelector('#plus')?.addEventListener('click', () => changer(1));
@@ -125,6 +130,24 @@ export function fiche(root, { params }) {
     vues[o]();
   };
   onglets.forEach(b => b.addEventListener('click', () => ouvrir(b.dataset.o)));
+
+  // Balayage gauche / droite sur la fiche pour changer d'onglet.
+  const ordre = ['ingredients', 'etapes', 'notes'];
+  let x0 = null, y0 = null;
+  const feuille = root.querySelector('.fiche-feuille');
+  feuille.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  feuille.addEventListener('touchend', e => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const k = ordre.indexOf(etat.onglet) + (dx < 0 ? 1 : -1);
+    if (k < 0 || k >= ordre.length) return;
+    ouvrir(ordre[k]);
+    contenu.classList.remove('glisse-g', 'glisse-d');
+    void contenu.offsetWidth;
+    contenu.classList.add(dx < 0 ? 'glisse-g' : 'glisse-d');
+  }, { passive: true });
   majLien();
   ouvrir(etat.onglet);
 }

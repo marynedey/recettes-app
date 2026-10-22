@@ -131,15 +131,25 @@ export function parseNumber(s) {
   return parseFloat(s.replace(',', '.'));
 }
 
+// « une pincée », « deux oeufs »… mais pas « un peu de », « une dizaine de ».
+const MOTS_NOMBRES = ['un', 'une', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze'];
+const MOT_RE = new RegExp(`^(${MOTS_NOMBRES.join('|')})\\s+(?!peu\\b|demi|dizaine|douzaine|quinzaine|vingtaine|trentaine|centaine)`, 'i');
+
 export function parseIngredient(raw) {
   const text = raw.trim();
   let rest = text;
   const ing = { raw: text, qty: null, qtyMax: null, unit: '', name: text };
   const q = rest.match(QTY_RE);
-  if (!q) return ing;
-  ing.qty = parseNumber(q[1]);
-  if (q[2]) ing.qtyMax = parseNumber(q[2]);
-  rest = rest.slice(q[0].length);
+  const mot = !q && rest.match(MOT_RE);
+  if (!q && !mot) return ing;
+  if (q) {
+    ing.qty = parseNumber(q[1]);
+    if (q[2]) ing.qtyMax = parseNumber(q[2]);
+    rest = rest.slice(q[0].length);
+  } else {
+    ing.qty = Math.max(1, MOTS_NOMBRES.indexOf(mot[1].toLowerCase()));
+    rest = rest.slice(mot[0].length);
+  }
   const u = rest.match(UNIT_RE);
   if (u) {
     const found = UNITS.find(([re]) => new RegExp(`^(?:${re})$`, 'i').test(u[1]));
@@ -163,8 +173,9 @@ function arrondi(n, unit) {
   return q === 0 ? Math.round(n * 100) / 100 : q;
 }
 
-export function formatNumber(n, unit = '') {
-  const v = arrondi(n, unit);
+export function formatNumber(n, unit = '', exact = false) {
+  // Quantité d'origine (exact) : affichée telle quelle ; recalculée : arrondie.
+  const v = exact ? Math.round(n * 1000) / 1000 : arrondi(n, unit);
   const ent = Math.floor(v);
   const frac = Math.round((v - ent) * 100) / 100;
   const sym = { 0.25: '¼', 0.5: '½', 0.75: '¾' }[frac];
@@ -178,12 +189,21 @@ function pluriel(unit, n) {
   return unit + 's';
 }
 
+/**
+ * Vrai si la ligne contient un nombre que l'app ne sait pas recalculer
+ * (« Farine : 200 g », « 1 pot yaourt (87 g) ») : à ajuster à la main.
+ */
+export function nonRecalcule(ing) {
+  return ing.qty == null ? /\d/.test(ing.raw) : /\d/.test(ing.name);
+}
+
 /** Quantité formatée (« 200 g », « 1½ c. à soupe ») pour un facteur donné. */
 export function formatQty(ing, factor = 1) {
   if (ing.qty == null) return '';
   const a = ing.qty * factor;
-  let s = formatNumber(a, ing.unit);
-  if (ing.qtyMax != null) s += '–' + formatNumber(ing.qtyMax * factor, ing.unit);
+  const exact = factor === 1;
+  let s = formatNumber(a, ing.unit, exact);
+  if (ing.qtyMax != null) s += '–' + formatNumber(ing.qtyMax * factor, ing.unit, exact);
   const unit = pluriel(ing.unit, ing.qtyMax != null ? ing.qtyMax * factor : a);
   return unit ? `${s} ${unit}` : s;
 }
@@ -301,12 +321,9 @@ function motCle(name) {
 
 const STOP_DEUX = new Set(['sucre', 'beurre', 'farine', 'lait', 'creme', 'huile', 'sel', 'poivre']);
 
-/**
- * Ingrédients probablement utilisés dans une étape : on cherche le nom
- * (ou son premier mot significatif) dans le texte, en privilégiant le
- * groupe d'ingrédients qui porte le même nom que le groupe d'étapes.
- */
-export function ingredientsForStep(r, step) {
+// Ingrédients dont le nom apparaît dans le texte de l'étape. On privilégie
+// le groupe d'ingrédients qui porte le même nom que le groupe d'étapes.
+function candidats(r, step) {
   const txt = ' ' + sansAccents(step.texte).toLowerCase().replace(/[^a-z0-9œ]+/g, ' ') + ' ';
   const has = w => txt.includes(' ' + w + ' ') || txt.includes(' ' + w + 's ') || (w.endsWith('s') && txt.includes(' ' + w.slice(0, -1) + ' '));
   const norm = s => sansAccents(s).toLowerCase().trim();
@@ -321,10 +338,49 @@ export function ingredientsForStep(r, step) {
       const ok = STOP_DEUX.has(mots[0]) && mots[1] && !['fondu', 'froid', 'mou', 'demi', 'nature', 'entier', 'poudre'].includes(mots[1])
         ? has(mots[0]) && has(mots[1])
         : has(mots[0]);
-      if (ok && !out.includes(ing)) out.push(ing);
+      if (ok) out.push({ ing, cle: mots[0], precis: mots.every(has) });
     }
   }
   return out;
+}
+
+/** Quantités écrites dans le texte d'une étape (« 1 c. à soupe de sucre » → 1 | c. à soupe). */
+function quantitesCitees(texte) {
+  const out = new Set();
+  for (const m of texte.matchAll(/(^|[^\w.,])(?=\d|[½¼¾⅓⅔⅛])/g)) {
+    const q = parseIngredient(texte.slice(m.index + m[1].length));
+    if (q.qty != null) out.add(`${q.qty}|${q.unit}`);
+  }
+  for (const m of texte.matchAll(/(^|\s)(?=(?:une?|deux|trois|quatre)\s)/gi)) {
+    const q = parseIngredient(texte.slice(m.index + m[1].length));
+    if (q.qty != null && q.unit) out.add(`${q.qty}|${q.unit}`);
+  }
+  return out;
+}
+
+/**
+ * Ingrédients probablement utilisés dans une étape. Quand l'étape cite une
+ * quantité (« 1 c. à soupe de sucre »), on garde l'ingrédient qui a cette
+ * quantité plutôt que les autres du même nom (« 90 g sucre »), et un
+ * ingrédient ainsi cité n'est plus proposé aux étapes suivantes.
+ */
+export function ingredientsForStep(r, step) {
+  const choisir = s => {
+    const cites = quantitesCitees(s.texte);
+    const liste = candidats(r, s).filter(c => !utilises.has(c.ing));
+    const estCite = c => cites.has(`${c.ing.qty}|${c.ing.unit}`);
+    // Entre plusieurs ingrédients du même nom, on garde ceux dont la quantité
+    // est citée, sinon ceux dont tous les mots sont dans l'étape (« beurre froid »).
+    const garder = (c, critere) => critere(c) || !liste.some(o => o.cle === c.cle && critere(o));
+    return liste.filter(c => garder(c, estCite) && garder(c, o => o.precis || estCite(o)))
+      .map(c => ({ ...c, cite: estCite(c) }));
+  };
+  const utilises = new Set();
+  for (const s of flatSteps(r)) {
+    if (s.numero === step.numero || s.texte === step.texte) break;
+    for (const c of choisir(s)) if (c.cite) utilises.add(c.ing);
+  }
+  return choisir(step).map(c => c.ing);
 }
 
 export function emptyRecipe() {
