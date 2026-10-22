@@ -22,8 +22,8 @@ export function fromBase64Text(b64) {
 const encodePath = p => p.split('/').map(encodeURIComponent).join('/');
 
 export class GitHub {
-  constructor({ token, depot }) {
-    this.token = token;
+  constructor({ jeton, depot }) {
+    this.token = jeton;
     [this.owner, this.repo] = (depot || '').split('/');
     this.branch = null;
   }
