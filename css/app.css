@@ -36,7 +36,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { background: var(--fond); }
+html { background: var(--fond); overscroll-behavior-x: none; }
 body {
   margin: 0;
   overflow-x: clip;
@@ -46,6 +46,8 @@ body {
   font: 16px/1.45 var(--sans);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: contain;
+  /* Les glissements gauche/droite (onglets, étapes, photos) ne déclenchent pas « page précédente ». */
+  overscroll-behavior-x: none;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; background: none; padding: 0; }
@@ -293,6 +295,15 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 }
 .minuteur-mini .temps { font-variant-numeric: tabular-nums; margin-left: auto; }
 .minuteur-mini.fini { background: #F7DED3; color: var(--accent-fonce); }
+.minuteur-mini.pause .temps { opacity: .6; }
+.minuteurs-autres { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.minuteurs-autres .minuteur-mini { width: 100%; margin: 0; text-align: left; }
+.minuteur-mini .m-etape { flex: none; }
+.minuteur-mini .m-lib { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--brun); }
+.minuteur-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.minuteur-actions .lien { display: inline-flex; align-items: center; gap: 6px; padding: 6px 2px; }
+.minuteur-actions .lien svg.i { width: 16px; height: 16px; }
+.choix-durees button.a-minuteur::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--accent-vif); vertical-align: 1px; }
 .cuisine-nav { display: flex; gap: 12px; padding-top: 18px; }
 .cuisine-nav .bouton { height: 64px; flex: 1; font-size: 18px; }
 .cuisine-nav .bouton.secondaire { flex: .8; }
