@@ -310,6 +310,10 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .etat { margin-top: 12px; font-size: 15px; padding: 12px 14px; border-radius: 12px; background: var(--doux); }
 .etat.ok { background: #E3ECDD; color: #2F5A2B; }
 .etat.ko { background: #F7DED3; color: #8E2E14; }
+.jeton-ligne { display: flex; gap: 8px; }
+.jeton-ligne input { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: 15px; }
+.jeton-ligne input.masque { -webkit-text-security: disc; text-security: disc; }
+.jeton-ligne .bouton { flex: none; height: auto; }
 .retour-tete { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 
 /* ---------- toast ---------- */
