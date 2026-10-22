@@ -20,7 +20,7 @@ export function fiche(root, { params }) {
   const etat = lireEtat(r.slug) || { onglet: 'ingredients', portions: base || 1, coches: [] };
   const sauver = () => ecrireEtat(r.slug, etat);
   const m = r.meta;
-  const surtitre = [m.categorie, ...(m.tags || []).slice(0, 1)].filter(Boolean).join(' · ');
+  const surtitre = m.categorie || '';
   const steps = flatSteps(r);
 
   root.className = '';
