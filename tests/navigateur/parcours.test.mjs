@@ -299,6 +299,13 @@ test('photos : plusieurs photos, carrousel, photo principale et retrait', async 
   fichiers.set('photos/gateau-2.jpg', Buffer.concat([IMAGE, Buffer.from([0])]));
   await nouvellePage();
 
+  // Au démarrage, plusieurs photos se chargent en même temps (ici la même recette
+  // dans « Cuisinées récemment » et dans la liste) avant la fin de la synchronisation.
+  await page.evaluate(() => localStorage.setItem('mr.historique', JSON.stringify(['gateau'])));
+  await page.reload();
+  await page.locator('.visuel.a-photo').nth(1).waitFor();
+  assert.deepEqual(erreurs, [], 'chargement simultané de plusieurs photos');
+
   await page.goto(BASE + '#/recette/gateau');
   await page.locator('.diapo img').nth(1).waitFor({ state: 'attached' });
   assert.equal(await page.locator('.diapo').count(), 2);

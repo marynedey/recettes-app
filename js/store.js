@@ -31,7 +31,7 @@ export function enregistrerReglages(r) {
   ecrire(K.reglages, { ...avant, ...r });
   gh = null;
   arbre = null;
-  arbreTente = false;
+  arbreEnCours = null;
   if (r.depot && r.depot !== avant.depot) viderCache();
 }
 export const estConfigure = () => !!reglages().jeton;
@@ -47,7 +47,7 @@ export function github() {
 // cache : { [slug]: { sha, text } } — on garde le texte brut, l'analyse est refaite au chargement.
 let cache = lire(K.recettes, {});
 let arbre = null; // Map chemin → sha du dernier état connu du dépôt
-let arbreTente = false;
+let arbreEnCours = null; // chargement de l'arbre en cours (ou déjà tenté)
 let parsed = null;
 const listeners = new Set();
 
@@ -105,11 +105,13 @@ export function synchroniser() {
 }
 
 async function shaActuel(path) {
-  if (!arbre && !arbreTente && estConfigure()) {
-    arbreTente = true;
-    try { arbre = await github().tree(); } catch { return undefined; }
+  if (!arbre && estConfigure()) {
+    // Un seul chargement de l'arbre, partagé par tous les appels simultanés
+    // (plusieurs photos à l'écran) ; hors ligne, on ne réessaie pas à chaque photo.
+    arbreEnCours ??= github().tree().then(a => { arbre = a; }, () => {});
+    await arbreEnCours;
   }
-  return arbre.get(path);
+  return arbre?.get(path);
 }
 
 function slugLibre(titre) {

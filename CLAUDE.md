@@ -61,8 +61,9 @@ Quantités parsées (nombre + unité + nom) pour le recalcul selon le nombre de 
 
 Captures, PDF, TikToks : convertis à la main par Claude dans une conversation (pas dans l'app), au format ci-dessus.
 
-## Design (Direction A)
-Fond `#F6F0E6`, cartes `#FFFBF4`, encre `#2B2118`, texte secondaire `#8A7B6B`, bordures `#E7DCCB`, accent `#C4552D`, minuteur `#E9B949`, fond doux `#F1E3D3`. Titres Fraunces, texte Inter (auto-hébergées dans `fonts/`, licence OFL). Rayons ~18 px. Images manquantes : placeholder dégradé chaud.
+## Design (Direction A, couleurs de l'icône)
+Fond `#F6F0E6`, cartes `#FFFBF4`, encre `#2B2118`, texte secondaire `#8A7B6B`, bordures `#E7DCCB`.
+Orange tiré de l'icône (marmite, `icons/`) : accent `#C9480A` pour boutons, liens et texte (contraste 4,8 avec le blanc ; l'orange vif de l'icône `#F07818` ne fait que 2,9), `--accent-vif` `#F07818` pour le décor sans texte (progression), minuteur `#F7A12B`, fond doux `#FBE3CC`, pastel `#FFF0E0` avec texte `#8A3300`, accent foncé `#9C2400` (contour de l'icône). Toutes les couleurs sont des variables dans `:root` (`css/app.css`). Titres Fraunces, texte Inter (auto-hébergées dans `fonts/`, licence OFL). Rayons ~18 px. Images manquantes : placeholder dégradé chaud.
 
 ## Versions
 À **chaque** changement publié, augmenter la version dans `js/views/reglages.js` (affichée en bas des Réglages) **et** la même dans `sw.js` (`mr-app-X.Y.Z`) : c'est ce qui fait installer la nouvelle version sur le téléphone. Un test vérifie que les deux correspondent.

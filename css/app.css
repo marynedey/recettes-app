@@ -17,10 +17,14 @@
   --encre: #2B2118;
   --gris: #8A7B6B;
   --bordure: #E7DCCB;
-  --accent: #C4552D;
-  --accent-fonce: #A9441F;
-  --minuteur: #E9B949;
-  --doux: #F1E3D3;
+  /* Couleurs tirées de l'icône (orange vif #F07818, profond #E4540C, contour #9C2400). */
+  --accent: #C9480A;        /* boutons, liens, texte d'accent : contraste 4,8 avec le blanc */
+  --accent-fonce: #9C2400;  /* appui, texte foncé sur fond orangé */
+  --accent-vif: #F07818;    /* décor sans texte : progression, points */
+  --minuteur: #F7A12B;
+  --doux: #FBE3CC;
+  --pastel: #FFF0E0;        /* badges et encadrés clairs */
+  --brun: #8A3300;          /* texte sur --pastel */
   --vert: #4E7A4A;
   --rayon: 18px;
   --serif: 'Fraunces', 'Lora', Georgia, serif;
@@ -145,7 +149,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .fab {
   position: fixed; z-index: 21; right: max(20px, calc(50% - 260px)); bottom: calc(var(--tabbar) + var(--bas) + 18px);
   height: 56px; padding: 0 22px 0 18px; border-radius: 999px; background: var(--accent); color: #fff;
-  display: flex; align-items: center; gap: 8px; font-weight: 600; text-decoration: none; box-shadow: 0 8px 22px rgba(196, 85, 45, .35);
+  display: flex; align-items: center; gap: 8px; font-weight: 600; text-decoration: none; box-shadow: 0 8px 22px rgba(201, 72, 10, .35);
 }
 
 /* ---------- bannières ---------- */
@@ -156,7 +160,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .banniere.erreur { background: #F7DED3; }
 .banniere .txt { flex: 1; }
 .banniere strong { display: block; }
-.spinner { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid rgba(196, 85, 45, .25); border-top-color: var(--accent); animation: tourne 0.9s linear infinite; flex: none; }
+.spinner { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid rgba(201, 72, 10, .25); border-top-color: var(--accent); animation: tourne 0.9s linear infinite; flex: none; }
 @keyframes tourne { to { transform: rotate(360deg); } }
 
 .vide { text-align: center; padding: 44px 16px; color: var(--gris); }
@@ -241,7 +245,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
   background: linear-gradient(to top, var(--fond) 70%, rgba(246, 240, 230, 0));
 }
 .barre-bas > div { max-width: 520px; margin: 0 auto; display: flex; gap: 12px; }
-.barre-bas .bouton { flex: 1; box-shadow: 0 8px 20px rgba(196, 85, 45, .28); }
+.barre-bas .bouton { flex: 1; box-shadow: 0 8px 20px rgba(201, 72, 10, .28); }
 .barre-bas .bouton.secondaire { box-shadow: none; flex: .75; }
 /* Les boutons rétrécissent (texte agrandi sur Android) au lieu de sortir de l'écran. */
 .barre-bas .bouton, .cuisine-nav .bouton { min-width: 0; padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -249,11 +253,11 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 /* ---------- mode cuisine ---------- */
 .cuisine { min-height: 100dvh; display: flex; flex-direction: column; padding: calc(var(--haut) + 16px) 20px calc(var(--bas) + 16px); }
 .cuisine-tete { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.badge-veille { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: #FBF1D9; color: #B98A17; font-size: 14px; font-weight: 500; }
+.badge-veille { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: var(--pastel); color: var(--brun); font-size: 14px; font-weight: 500; }
 .badge-veille.off { background: var(--doux); color: var(--gris); }
 .badge-veille svg.i { width: 16px; height: 16px; }
 .progression { height: 6px; border-radius: 3px; background: var(--bordure); margin: 22px 0 22px; overflow: hidden; }
-.progression div { height: 100%; background: var(--accent); border-radius: 3px; transition: width .3s; }
+.progression div { height: 100%; background: var(--accent-vif); border-radius: 3px; transition: width .3s; }
 .etape-label { color: var(--accent); font-weight: 700; letter-spacing: .08em; font-size: 16px; text-transform: uppercase; }
 .etape-label span { color: var(--gris); font-weight: 500; }
 .etape-groupe { color: var(--gris); font-size: 14px; margin-top: 4px; }
@@ -276,16 +280,16 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .anneau .lib { font-size: 12px; color: var(--gris); line-height: 1.2; }
 .minuteur.fini { border-color: var(--accent); animation: sonne 1s ease-in-out infinite; }
 .minuteur.fini .val { stroke: var(--accent); }
-@keyframes sonne { 50% { background: #FBE7DD; } }
+@keyframes sonne { 50% { background: #FFE2CC; } }
 .minuteur-btns { display: flex; flex-direction: column; gap: 10px; flex: 1; }
 .minuteur-btns button { height: 48px; border-radius: 14px; border: 1px solid var(--bordure); background: var(--carte); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .minuteur-btns .lecture { background: var(--minuteur); border-color: var(--minuteur); color: var(--encre); }
 .minuteur-btns .lecture svg.i { fill: currentColor; stroke: none; }
 .choix-durees { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 14px; }
 .choix-durees button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--bordure); background: var(--carte); font-size: 14px; }
-.choix-durees button[aria-pressed="true"] { border-color: var(--minuteur); background: #FBF1D9; }
+.choix-durees button[aria-pressed="true"] { border-color: var(--minuteur); background: var(--pastel); }
 .minuteur-mini {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding: 10px 14px; border-radius: 14px; background: #FBF1D9; font-weight: 600;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding: 10px 14px; border-radius: 14px; background: var(--pastel); font-weight: 600;
 }
 .minuteur-mini .temps { font-variant-numeric: tabular-nums; margin-left: auto; }
 .minuteur-mini.fini { background: #F7DED3; color: var(--accent-fonce); }
@@ -302,7 +306,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
   width: 100%; border: 1px solid var(--bordure); background: var(--carte); border-radius: 12px; padding: 12px 14px; font-size: 16px; outline: 0;
 }
 .champ textarea { min-height: 150px; resize: vertical; line-height: 1.5; }
-.champ input:focus, .champ select:focus, .champ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(196, 85, 45, .12); }
+.champ input:focus, .champ select:focus, .champ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(201, 72, 10, .12); }
 .rangee { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; }
 .rangee .champ input { padding: 12px 10px; }
 .choix { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; background: var(--doux); padding: 5px; border-radius: 14px; }
@@ -331,10 +335,10 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .jeton-ligne input { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: 15px; }
 .jeton-ligne input.masque { -webkit-text-security: disc; text-security: disc; }
 .jeton-ligne .bouton { flex: none; height: auto; }
-.ajuster { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #FBF1D9; color: #8A6510; font-size: 12px; font-weight: 600; vertical-align: 2px; white-space: nowrap; }
+.ajuster { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--pastel); color: var(--brun); font-size: 12px; font-weight: 600; vertical-align: 2px; white-space: nowrap; }
 .note-ajuster { margin-top: 14px; }
 .note-ajuster .ajuster { margin-left: 0; }
-.verif { margin: -6px 0 14px; padding: 12px 14px; border-radius: 12px; background: #FBF1D9; color: #6B4E0C; font-size: 14px; }
+.verif { margin: -6px 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--pastel); color: var(--brun); font-size: 14px; }
 .verif ul { margin: 6px 0; padding-left: 20px; }
 .aide-bloc { margin: -6px 0 18px; border: 1px solid var(--bordure); border-radius: 12px; background: var(--carte); font-size: 14px; }
 .aide-bloc summary { padding: 12px 14px; color: var(--accent); font-weight: 600; cursor: pointer; }
