@@ -1,7 +1,7 @@
 // Fiche recette : photo, temps, onglets Ingrédients / Étapes / Notes.
 
 import * as store from '../store.js';
-import { formatQty, formatDuree, flatSteps, nonRecalcule } from '../format.js';
+import { formatQty, formatDuree, flatSteps, nonRecalcule, listePhotos } from '../format.js';
 import { esc, icon, visuel, chargerPhotos, tempsTotal, texteEtape, texteNotes, retour, toast } from '../ui.js';
 
 const lireEtat = slug => JSON.parse(sessionStorage.getItem('mr.fiche.' + slug) || 'null');
@@ -22,10 +22,13 @@ export function fiche(root, { params }) {
   const m = r.meta;
   const surtitre = m.categorie || '';
   const steps = flatSteps(r);
+  const photos = listePhotos(m);
 
   root.className = '';
   root.innerHTML = `
-    <div class="fiche-hero">${visuel(r)}
+    <div class="fiche-hero">${visuel(r)}${photos.length > 1 ? `
+      <div class="carrousel" id="carrousel">${photos.map(c => `<div class="diapo" data-chemin="${esc(c)}"></div>`).join('')}</div>
+      <div class="points" aria-hidden="true">${photos.map((_, i) => `<span${i ? '' : ' class="actif"'}></span>`).join('')}</div>` : ''}
       <div class="actions">
         <button class="btn-rond plein" id="retour" aria-label="Retour">${icon('back')}</button>
         <div>
@@ -54,6 +57,20 @@ export function fiche(root, { params }) {
     ${steps.length ? `<div class="barre-bas"><div><a class="bouton" id="cuisiner" href="#/cuisine/${encodeURIComponent(r.slug)}">${icon('play')}Lancer le mode cuisine</a></div></div>` : ''}`;
 
   chargerPhotos(root, () => r);
+
+  // Plusieurs photos : on les fait défiler en glissant, les points suivent.
+  const carrousel = root.querySelector('#carrousel');
+  if (carrousel) {
+    carrousel.querySelectorAll('.diapo').forEach(async d => {
+      const url = await store.photoUrlChemin(d.dataset.chemin);
+      if (url && d.isConnected) d.innerHTML = `<img src="${url}" alt="">`;
+    });
+    const points = root.querySelectorAll('.points span');
+    carrousel.addEventListener('scroll', () => {
+      const k = Math.round(carrousel.scrollLeft / carrousel.clientWidth);
+      points.forEach((p, i) => p.classList.toggle('actif', i === k));
+    }, { passive: true });
+  }
   root.querySelector('#retour').onclick = () => retour();
   const fav = root.querySelector('#fav');
   fav.onclick = () => {

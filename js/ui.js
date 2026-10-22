@@ -1,7 +1,7 @@
 // Petites aides d'affichage : échappement, icônes, visuels, toast.
 
 import { photoUrl } from './store.js';
-import { formatDuree, detectTimers } from './format.js';
+import { formatDuree, detectTimers, listePhotos } from './format.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -47,7 +47,7 @@ function hash(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCod
 /** Visuel d'une recette : dégradé chaud, remplacé par la photo une fois chargée. */
 export function visuel(r, cls = '') {
   const [c1, c2, c3, c4] = PALETTES[hash(r?.slug || r?.meta?.titre || '') % PALETTES.length];
-  const attr = r?.meta?.photo ? ` data-photo="${esc(r.slug)}"` : '';
+  const attr = r?.meta && listePhotos(r.meta).length ? ` data-photo="${esc(r.slug)}"` : '';
   return `<div class="visuel ${cls}" style="--c1:${c1};--c2:${c2};--c3:${c3};--c4:${c4}"${attr}>
     <span class="rond r1"></span><span class="rond r2"></span><span class="rond r3"></span>
     <span class="assiette">${icon('plate')}</span></div>`;
