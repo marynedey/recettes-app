@@ -2,7 +2,7 @@
 
 import * as store from '../store.js';
 import { flatSteps, ingredientsForStep, formatQty, detectTimers } from '../format.js';
-import { esc, icon, texteEtape, retour } from '../ui.js';
+import { esc, icon, texteEtape } from '../ui.js';
 
 /* ---------- minuteur (survit au changement d'étape) ---------- */
 
@@ -142,7 +142,7 @@ export function cuisine(root, { params, query }) {
     prec.disabled = i === 0;
     suiv.innerHTML = i === steps.length - 1 ? `Terminé ${icon('check')}` : `Suivante ${icon('arrow')}`;
 
-    corps.querySelector('#mini')?.addEventListener('click', () => { i = minuteur.etape; rendreEtape(); });
+    corps.querySelector('#mini')?.addEventListener('click', () => allerA(minuteur.etape));
     corps.querySelectorAll('.choix-durees button').forEach(b => b.addEventListener('click', () => {
       choixDuree = +b.dataset.k;
       if (!(ceMinuteur && minuteur.enCours)) minuteur.regler(r.slug, i, timers[choixDuree].secondes, s.group || 'Minuteur');
@@ -197,19 +197,41 @@ export function cuisine(root, { params, query }) {
 
   const intervalle = setInterval(tic, 500);
 
-  const aller = d => {
-    if (i + d >= steps.length) { sessionStorage.removeItem(cle); location.hash = `#/recette/${encodeURIComponent(r.slug)}`; return; }
-    i = Math.max(0, Math.min(steps.length - 1, i + d));
-    choixDuree = 0;
-    rendreEtape();
-    window.scrollTo(0, 0);
+  // Chaque étape a sa propre entrée d'historique : le bouton retour d'Android
+  // revient à l'étape précédente ; depuis l'étape 1, il quitte le mode cuisine.
+  const afficher = k => { i = k; choixDuree = 0; rendreEtape(); window.scrollTo(0, 0); };
+  const allerA = k => {
+    k = Math.max(0, Math.min(steps.length - 1, k));
+    if (k < i) { history.go(k - i); return; } // popstate affiche l'étape
+    for (let n = i + 1; n <= k; n++) history.pushState({ cuisine: r.slug, etape: n }, '');
+    if (k !== i) afficher(k);
   };
+  let actif = true; // passe à false quand la vue est quittée
+  const quitter = () => {
+    history.go(-(i + 1));
+    // Mode cuisine ouvert sans page avant lui : on va directement à la fiche.
+    const fiche = `#/recette/${encodeURIComponent(r.slug)}`;
+    setTimeout(() => { if (actif) location.replace(fiche); }, 400);
+  };
+  const aller = d => {
+    if (i + d >= steps.length) { sessionStorage.removeItem(cle); quitter(); return; }
+    allerA(i + d);
+  };
+  const surRetour = e => { if (e.state?.cuisine === r.slug) afficher(e.state.etape); };
+  window.addEventListener('popstate', surRetour);
+  if (history.state?.cuisine === r.slug) {
+    i = Math.min(history.state.etape, steps.length - 1); // page rechargée : l'historique existe déjà
+  } else {
+    history.replaceState({ cuisine: r.slug, etape: 0 }, '');
+    for (let n = 1; n <= i; n++) history.pushState({ cuisine: r.slug, etape: n }, '');
+  }
+
   root.querySelector('#prec').onclick = () => aller(-1);
   root.querySelector('#suiv').onclick = () => aller(1);
   root.querySelector('#fermer').onclick = () => {
     if (minuteur.enCours && minuteur.slug === r.slug && !confirm('Un minuteur est en cours. Quitter quand même ?')) return;
     if (minuteur.slug === r.slug) minuteur.regler(null, -1, 0, '');
-    retour(`#/recette/${encodeURIComponent(r.slug)}`);
+    quitter();
   };
 
   // Balayage gauche / droite pour changer d'étape.
@@ -233,9 +255,11 @@ export function cuisine(root, { params, query }) {
   rendreEtape();
 
   return () => {
+    actif = false;
     clearInterval(intervalle);
     document.removeEventListener('visibilitychange', surVisibilite);
     document.removeEventListener('keydown', clavier);
+    window.removeEventListener('popstate', surRetour);
     verrou?.release().catch(() => {});
     verrou = null;
   };
