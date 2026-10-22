@@ -1,6 +1,6 @@
 // Service worker : met l'application en cache pour un usage hors ligne.
 // Les recettes et photos sont gérées par l'app elle-même (localStorage + Cache API).
-const VERSION = 'mr-app-v3';
+const VERSION = 'mr-app-v4';
 const FICHIERS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/format.js', 'js/github.js', 'js/store.js', 'js/ui.js',
@@ -10,7 +10,7 @@ const FICHIERS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FICHIERS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FICHIERS.map(f => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -29,7 +29,8 @@ self.addEventListener('fetch', e => {
     const cache = await caches.open(VERSION);
     // ignoreSearch : le partage Android ouvre « ./?url=… ».
     const enCache = await cache.match(req, { ignoreSearch: req.mode === 'navigate' });
-    const reseau = fetch(req).then(res => {
+    // no-cache : ne pas reprendre la copie du cache HTTP (GitHub Pages la garde 10 min).
+    const reseau = fetch(req, { cache: 'no-cache' }).then(res => {
       if (res.ok) cache.put(req.mode === 'navigate' ? './' : req, res.clone());
       return res;
     }).catch(() => null);
