@@ -311,6 +311,20 @@ test('photos : plusieurs photos, carrousel, photo principale et retrait', async 
   assert.equal(await page.locator('.diapo').count(), 2);
   assert.equal(await page.locator('.points span').count(), 2);
 
+  // Toucher la photo l'agrandit ; on glisse à la suivante ; le retour Android ferme sans quitter la fiche.
+  await page.click('.fiche-hero', { position: { x: 200, y: 150 } });
+  await page.locator('.visionneuse .v-photo img').nth(1).waitFor({ state: 'attached' });
+  assert.equal(await page.textContent('.v-compteur'), '1 / 2');
+  await page.evaluate(() => { const d = document.querySelector('.v-defile'); d.scrollLeft = d.clientWidth; });
+  await page.waitForTimeout(200);
+  assert.equal(await page.textContent('.v-compteur'), '2 / 2');
+  await page.goBack();
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('.visionneuse').count(), 0);
+  assert.match(page.url(), /#\/recette\/gateau$/);
+  await page.click('.fiche-hero #fav');
+  assert.equal(await page.locator('.visionneuse').count(), 0, 'les boutons sur la photo n\'ouvrent pas la visionneuse');
+
   // Ajout d'une recette avec deux photos choisies d'un coup dans la galerie.
   await page.goto(BASE + '#/ajouter?manuel=1');
   await page.fill('[name=titre]', 'Tarte');
