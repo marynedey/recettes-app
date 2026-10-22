@@ -24,6 +24,8 @@ let serveur, BASE;
 /* ---------- faux GitHub ---------- */
 
 const sha = b => createHash('sha1').update(b).digest('hex');
+// Petite image valide (PNG 2×2) pour simuler des photos.
+const IMAGE = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP4z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', 'base64');
 let fichiers;   // chemin → Buffer
 let ecritures;  // [{ methode, chemin, message, contenu }]
 let requetesSansJeton;
@@ -262,6 +264,76 @@ test('hors ligne : l\'app et les recettes restent consultables', async () => {
   await page.click('text=Tarte tatin');
   await page.locator('.fiche-feuille h1').waitFor();
   assert.equal(await page.textContent('.fiche-feuille h1'), 'Tarte tatin');
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('aucun écran ne déborde en largeur, même avec le texte agrandi (réglage Android)', async () => {
+  depotInitial();
+  await nouvellePage();
+  const ecrans = ['#/', '#/recettes', '#/recette/cinnamon-rolls', '#/cuisine/cinnamon-rolls', '#/modifier/cinnamon-rolls', '#/ajouter', '#/ajouter?manuel=1', '#/reglages'];
+  for (const ecran of ecrans) {
+    await page.goto(BASE + ecran);
+    await page.reload(); // repart de tailles de police normales
+    await page.waitForTimeout(400);
+    await page.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; }));
+    const depassent = await page.evaluate(() => {
+      // Comme la « taille du texte » d'Android : toutes les polices × 1,3.
+      const els = [...document.querySelectorAll('body, body *')];
+      const tailles = els.map(e => parseFloat(getComputedStyle(e).fontSize));
+      els.forEach((e, i) => { e.style.fontSize = `${tailles[i] * 1.3}px`; });
+      const largeur = document.documentElement.clientWidth;
+      return els.filter(e => e.getBoundingClientRect().right > largeur + 1)
+        .map(e => `${e.tagName.toLowerCase()}${e.className ? '.' + String(e.className).split(' ').join('.') : ''}`);
+    });
+    assert.deepEqual(depassent, [], `${ecran} : éléments plus larges que l'écran`);
+  }
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('photos : plusieurs photos, carrousel, photo principale et retrait', async () => {
+  depotInitial();
+  fichiers.set('recettes/gateau.md', Buffer.from('---\ntitre: Gâteau\ncategorie: Desserts\nportions: 4\nphotos: [photos/gateau.jpg, photos/gateau-2.jpg]\n---\n## Ingrédients\n- 200 g farine\n\n## Étapes\n1. Cuire.\n'));
+  fichiers.set('photos/gateau.jpg', IMAGE);
+  fichiers.set('photos/gateau-2.jpg', Buffer.concat([IMAGE, Buffer.from([0])]));
+  await nouvellePage();
+
+  await page.goto(BASE + '#/recette/gateau');
+  await page.locator('.diapo img').nth(1).waitFor({ state: 'attached' });
+  assert.equal(await page.locator('.diapo').count(), 2);
+  assert.equal(await page.locator('.points span').count(), 2);
+
+  // Ajout d'une recette avec deux photos choisies d'un coup dans la galerie.
+  await page.goto(BASE + '#/ajouter?manuel=1');
+  await page.fill('[name=titre]', 'Tarte');
+  await page.setInputFiles('#f-galerie', [
+    { name: 'a.png', mimeType: 'image/png', buffer: IMAGE },
+    { name: 'b.png', mimeType: 'image/png', buffer: IMAGE },
+  ]);
+  await page.locator('.vignette-photo').nth(1).waitFor();
+  assert.equal(await page.locator('.vp-principale').count(), 1);
+  await page.click('#enreg');
+  await page.waitForURL(/#\/recette\/tarte/);
+  const chemins = ecritures.filter(w => w.methode === 'PUT').map(w => w.chemin);
+  assert.deepEqual(chemins, ['photos/tarte.jpg', 'photos/tarte-2.jpg', 'recettes/tarte.md']);
+  assert.match(ecritures.at(-1).contenu, /\nphotos: \[photos\/tarte\.jpg, photos\/tarte-2\.jpg\]\n/);
+
+  // Modification : la 2e photo devient principale, la 1re est retirée puis supprimée du dépôt.
+  ecritures.length = 0;
+  await page.goto(BASE + '#/modifier/gateau');
+  await page.locator('.vignette-photo').nth(1).waitFor();
+  await page.locator('.vp-image').nth(1).click();
+  await page.locator('.vp-retirer').nth(1).click();
+  assert.equal(await page.locator('.vignette-photo').count(), 1);
+  await page.click('#enreg');
+  await page.waitForURL(/#\/recette\/gateau/);
+  const md = ecritures.find(w => w.chemin === 'recettes/gateau.md');
+  assert.match(md.contenu, /\nphotos: \[photos\/gateau-2\.jpg\]\n/);
+  assert.ok(!/\nphoto:/.test(md.contenu));
+  await page.waitForTimeout(300);
+  assert.deepEqual(ecritures.filter(w => w.methode === 'DELETE').map(w => w.chemin), ['photos/gateau.jpg']);
+  assert.ok(ecritures.findIndex(w => w.chemin === 'recettes/gateau.md') < ecritures.findIndex(w => w.methode === 'DELETE'), 'la photo est supprimée après l\'enregistrement de la recette');
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

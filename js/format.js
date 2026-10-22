@@ -4,7 +4,7 @@
 
 export const CATEGORIES = ['Plats', 'Desserts', 'Entrées', 'Végé', 'Apéro', 'Boissons', 'Petit-déj', 'Goûter', 'Sauces', 'Pains'];
 export const DIFFICULTES = ['Facile', 'Moyen', 'Difficile'];
-const META_ORDER = ['titre', 'categorie', 'tags', 'portions', 'preparation', 'cuisson', 'repos', 'difficulte', 'photo', 'source', 'ajoutee'];
+const META_ORDER = ['titre', 'categorie', 'tags', 'portions', 'preparation', 'cuisson', 'repos', 'difficulte', 'photo', 'photos', 'source', 'ajoutee'];
 
 /* ---------- utilitaires ---------- */
 
@@ -383,10 +383,16 @@ export function ingredientsForStep(r, step) {
   return choisir(step).map(c => c.ing);
 }
 
+/** Photos d'une recette, la principale en premier. L'ancien champ « photo » est toujours lu. */
+export function listePhotos(meta) {
+  const l = Array.isArray(meta.photos) ? meta.photos : [meta.photos || meta.photo];
+  return l.filter(Boolean).map(String);
+}
+
 export function emptyRecipe() {
   return {
     slug: '', path: '',
-    meta: { titre: '', categorie: 'Plats', tags: [], portions: 4, preparation: '', cuisson: '', repos: '', difficulte: 'Facile', photo: '', source: '', ajoutee: new Date().toISOString().slice(0, 10) },
+    meta: { titre: '', categorie: 'Plats', tags: [], portions: 4, preparation: '', cuisson: '', repos: '', difficulte: 'Facile', source: '', ajoutee: new Date().toISOString().slice(0, 10) },
     ingredients: [], etapes: [], notes: '',
   };
 }

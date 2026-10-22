@@ -35,7 +35,7 @@ preparation: 20           # minutes
 cuisson: 55               # minutes
 repos: 30                 # minutes (pousse, frigo, marinade… facultatif)
 difficulte: Facile        # Facile | Moyen | Difficile
-photo: photos/tarte-tatin.jpg
+photos: [photos/tarte-tatin.jpg, photos/tarte-tatin-2.jpg]   # la première = photo principale (l'ancien « photo: x.jpg » est toujours lu ; l'import l'utilise)
 source: https://…         # lien d'origine si import
 ajoutee: 2026-10-22
 ---

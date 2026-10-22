@@ -1,25 +1,26 @@
 // Ajout (import par lien ou saisie manuelle) et modification d'une recette.
 
 import * as store from '../store.js';
-import { CATEGORIES, DIFFICULTES, emptyRecipe, groupsToText, textToGroups, parseIngredient, nonRecalcule } from '../format.js';
-import { esc, icon, visuel, chargerPhotos, retour, toast } from '../ui.js';
+import { CATEGORIES, DIFFICULTES, emptyRecipe, groupsToText, textToGroups, parseIngredient, nonRecalcule, listePhotos } from '../format.js';
+import { esc, icon, retour, toast } from '../ui.js';
 
 function formulaire(root, r, { titrePage, onAnnuler }) {
   const m = r.meta;
   const cats = [...new Set([...CATEGORIES, m.categorie].filter(Boolean))];
-  let photo = null;
+  // Photos, la principale en premier : { chemin } déjà dans le dépôt, ou { blob, url } nouvelle.
+  let photos = listePhotos(m).map(chemin => ({ chemin }));
+  let photosModifiees = false;
 
   root.insertAdjacentHTML('beforeend', `
     <form id="form" novalidate>
       <label class="champ"><span>Titre *</span><input name="titre" required value="${esc(m.titre)}" placeholder="Tarte tatin" autocomplete="off"></label>
-      <div class="champ"><span>Photo</span>
-        <div class="photo-choix">
-          <div class="photo-apercu" id="apercu">${visuel(r)}</div>
-          <div class="photo-btns">
-            <label class="bouton secondaire petit">${icon('image')}Galerie<input type="file" accept="image/*" id="f-galerie"></label>
-            <label class="bouton secondaire petit">${icon('camera')}Appareil photo<input type="file" accept="image/*" capture="environment" id="f-camera"></label>
-          </div>
+      <div class="champ"><span>Photos</span>
+        <div class="photos-liste" id="photos"></div>
+        <div class="photo-btns">
+          <label class="bouton secondaire petit">${icon('image')}Galerie<input type="file" accept="image/*" multiple id="f-galerie"></label>
+          <label class="bouton secondaire petit">${icon('camera')}Appareil photo<input type="file" accept="image/*" capture="environment" id="f-camera"></label>
         </div>
+        <small>La première est la photo principale. Touchez une photo pour la mettre en premier.</small>
       </div>
       <label class="champ"><span>Catégorie</span>
         <select name="categorie">${cats.map(c => `<option ${c === m.categorie ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
@@ -74,21 +75,44 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
     </form>`);
 
   const form = root.querySelector('#form');
-  chargerPhotos(form, () => r);
+
+  const zonePhotos = form.querySelector('#photos');
+  const afficherPhotos = () => {
+    zonePhotos.innerHTML = photos.map((p, i) => `<div class="vignette-photo" data-i="${i}">
+        <button type="button" class="vp-image" aria-label="${i ? 'Mettre en photo principale' : 'Photo principale'}"></button>
+        ${i ? '' : '<span class="vp-principale">Principale</span>'}
+        <button type="button" class="vp-retirer" aria-label="Retirer cette photo">${icon('x')}</button>
+      </div>`).join('');
+    zonePhotos.querySelectorAll('.vignette-photo').forEach(async el => {
+      const p = photos[+el.dataset.i];
+      const url = p.url || await store.photoUrlChemin(p.chemin);
+      if (url && el.isConnected) el.querySelector('.vp-image').style.backgroundImage = `url("${url}")`;
+    });
+    zonePhotos.querySelectorAll('.vp-image').forEach(b => b.addEventListener('click', () => {
+      const i = +b.closest('.vignette-photo').dataset.i;
+      if (!i) return;
+      photos.unshift(...photos.splice(i, 1));
+      photosModifiees = true;
+      afficherPhotos();
+    }));
+    zonePhotos.querySelectorAll('.vp-retirer').forEach(b => b.addEventListener('click', () => {
+      photos.splice(+b.closest('.vignette-photo').dataset.i, 1);
+      photosModifiees = true;
+      afficherPhotos();
+    }));
+  };
+  afficherPhotos();
 
   const choisir = async e => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    try {
-      photo = await store.preparerPhoto(f);
-      const ap = root.querySelector('#apercu .visuel');
-      ap.querySelector('img')?.remove();
-      const img = new Image();
-      img.src = URL.createObjectURL(photo);
-      img.className = 'ok';
-      ap.classList.add('a-photo');
-      ap.appendChild(img);
-    } catch { toast('Impossible de lire cette image.'); }
+    for (const f of e.target.files || []) {
+      try {
+        const blob = await store.preparerPhoto(f);
+        photos.push({ blob, url: URL.createObjectURL(blob) });
+        photosModifiees = true;
+      } catch { toast('Impossible de lire une des images.'); }
+    }
+    e.target.value = '';
+    afficherPhotos();
   };
   form.querySelector('#f-galerie').addEventListener('change', choisir);
   form.querySelector('#f-camera').addEventListener('change', choisir);
@@ -128,7 +152,7 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
     const btn = form.querySelector('#enreg');
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Enregistrement…';
     try {
-      const slug = await store.enregistrerRecette(r, photo);
+      const slug = await store.enregistrerRecette(r, photosModifiees ? photos : undefined);
       toast('Recette enregistrée');
       location.replace(`#/recette/${encodeURIComponent(slug)}`);
     } catch (err) {
@@ -167,7 +191,7 @@ export function ajouter(root, { query }) {
   root.className = 'page sans-tabbar';
   root.innerHTML = `<div class="retour-tete"><button class="btn-rond" id="retour" aria-label="Retour">${icon('back')}</button>
       <h1 class="titre-page">Nouvelle recette</h1></div>
-    <div class="segments" role="tablist" style="grid-template-columns:1fr 1fr;margin-top:0">
+    <div class="segments" role="tablist" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0">
       <button role="tab" data-o="lien" aria-selected="${!manuel}">Par lien</button>
       <button role="tab" data-o="manuel" aria-selected="${manuel}">Saisie manuelle</button>
     </div>

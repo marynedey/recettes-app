@@ -2,7 +2,7 @@
 // imports en attente. Tout reste sur le téléphone.
 
 import { GitHub } from './github.js';
-import { parseRecipe, serializeRecipe, slugify } from './format.js';
+import { parseRecipe, serializeRecipe, slugify, listePhotos } from './format.js';
 
 const K = {
   reglages: 'mr.reglages',
@@ -133,29 +133,56 @@ export async function preparerPhoto(file) {
   return new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.85));
 }
 
-/** Enregistre (création ou modification) une recette, avec photo éventuelle. */
-export async function enregistrerRecette(r, photoBlob) {
+/**
+ * Enregistre (création ou modification) une recette.
+ * `photos` (facultatif) : la nouvelle liste, dans l'ordre, la principale en premier ;
+ * chaque élément est { chemin } (photo déjà dans le dépôt) ou { blob } (nouvelle photo).
+ */
+export async function enregistrerRecette(r, photos) {
   const api = github();
   const nouveau = !r.slug;
   if (nouveau) r.slug = slugLibre(r.meta.titre);
   const path = `recettes/${r.slug}.md`;
-  if (photoBlob) {
-    const photoPath = `photos/${r.slug}.jpg`;
-    const bytes = new Uint8Array(await photoBlob.arrayBuffer());
-    const sha = await api.putFile(photoPath, bytes, `Photo : ${r.meta.titre}`, await shaActuel(photoPath));
-    arbre?.set(photoPath, sha);
-    await mettrePhotoEnCache(sha, photoBlob);
-    const index = lire('mr.photosIndex', {}); index[photoPath] = sha; ecrire('mr.photosIndex', index);
-    urls.delete(photoPath);
-    r.meta.photo = photoPath;
+  let aSupprimer = [];
+  if (photos) {
+    const avant = listePhotos(r.meta);
+    const pris = new Set(photos.filter(p => p.chemin).map(p => p.chemin));
+    // Nom libre : photos/<slug>.jpg, puis <slug>-2.jpg… (un nom retiré de cette recette peut resservir).
+    const nomLibre = () => {
+      for (let i = 1; ; i++) {
+        const c = `photos/${r.slug}${i > 1 ? `-${i}` : ''}.jpg`;
+        if (!pris.has(c) && (!arbre?.has(c) || avant.includes(c))) { pris.add(c); return c; }
+      }
+    };
+    const finales = [];
+    for (const p of photos) {
+      if (p.chemin) { finales.push(p.chemin); continue; }
+      const chemin = nomLibre();
+      const sha = await api.putFile(chemin, new Uint8Array(await p.blob.arrayBuffer()), `Photo : ${r.meta.titre}`, await shaActuel(chemin));
+      await retenirPhoto(chemin, sha, p.blob);
+      finales.push(chemin);
+    }
+    delete r.meta.photo;
+    r.meta.photos = finales;
+    aSupprimer = avant.filter(c => !finales.includes(c) && c.startsWith('photos/'));
   }
   const text = serializeRecipe(r);
   const sha = await api.putFile(path, text, `${nouveau ? 'Ajout' : 'Modification'} : ${r.meta.titre}`, nouveau ? undefined : (cache[r.slug]?.sha || await shaActuel(path)));
   arbre?.set(path, sha);
   cache[r.slug] = { sha, text };
   ecrire(K.recettes, cache);
+  // Les photos retirées ne sont supprimées qu'une fois la recette enregistrée sans elles.
+  for (const c of aSupprimer) await supprimerPhoto(c, r.meta.titre);
   notifier();
   return r.slug;
+}
+
+async function supprimerPhoto(chemin, titre) {
+  const sha = await shaActuel(chemin);
+  if (!sha) return;
+  await github().deleteFile(chemin, sha, `Suppression photo : ${titre}`).catch(() => {});
+  arbre?.delete(chemin);
+  urls.delete(chemin);
 }
 
 export async function supprimerRecette(slug) {
@@ -165,10 +192,7 @@ export async function supprimerRecette(slug) {
   const sha = cache[slug]?.sha || await shaActuel(path);
   await api.deleteFile(path, sha, `Suppression : ${r?.meta.titre || slug}`);
   arbre?.delete(path);
-  if (r?.meta.photo && r.meta.photo.startsWith('photos/')) {
-    const psha = await shaActuel(r.meta.photo);
-    if (psha) { await api.deleteFile(r.meta.photo, psha, `Suppression photo : ${r.meta.titre}`).catch(() => {}); arbre?.delete(r.meta.photo); }
-  }
+  for (const c of r ? listePhotos(r.meta) : []) if (c.startsWith('photos/')) await supprimerPhoto(c, r.meta.titre);
   delete cache[slug];
   ecrire(K.recettes, cache);
   setFavori(slug, false);
@@ -184,9 +208,18 @@ async function mettrePhotoEnCache(sha, blob) {
   try { await (await caches.open(PHOTO_CACHE)).put(photoKey(sha), new Response(blob)); } catch { /* pas de Cache API */ }
 }
 
-/** URL affichable de la photo d'une recette (ou null). */
-export async function photoUrl(r) {
-  const p = r?.meta.photo;
+async function retenirPhoto(chemin, sha, blob) {
+  arbre?.set(chemin, sha);
+  await mettrePhotoEnCache(sha, blob);
+  const index = lire('mr.photosIndex', {}); index[chemin] = sha; ecrire('mr.photosIndex', index);
+  urls.delete(chemin);
+}
+
+/** URL affichable de la photo principale d'une recette (ou null). */
+export const photoUrl = r => (r ? photoUrlChemin(listePhotos(r.meta)[0]) : null);
+
+/** URL affichable d'une photo du dépôt (ou null). */
+export async function photoUrlChemin(p) {
   if (!p) return null;
   if (/^https?:\/\//.test(p)) return p;
   if (urls.has(p)) return urls.get(p);
@@ -206,8 +239,7 @@ export async function photoUrl(r) {
   if (!blob && sha && estConfigure()) {
     try {
       blob = await github().blobBytes(sha);
-      await mettrePhotoEnCache(sha, blob);
-      const index = lire('mr.photosIndex', {}); index[p] = sha; ecrire('mr.photosIndex', index);
+      await retenirPhoto(p, sha, blob);
     } catch { return null; }
   }
   if (!blob) return null;

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseRecipe, serializeRecipe, parseIngredient, formatQty, detectTimers, flatSteps, ingredientsForStep, textToGroups, slugify } from '../js/format.js';
+import { listePhotos, parseRecipe, serializeRecipe, parseIngredient, formatQty, detectTimers, flatSteps, ingredientsForStep, textToGroups, slugify } from '../js/format.js';
 
 const DIR = new URL('./fixtures/', import.meta.url).pathname;
 
@@ -90,4 +90,13 @@ test('formulaire', () => {
   assert.deepEqual(textToGroups('Pour la pâte :\n- 200 g farine\n\n### Sauce\n2 oeufs'), [
     { group: 'Pour la pâte', items: ['200 g farine'] }, { group: 'Sauce', items: ['2 oeufs'] }]);
   assert.equal(slugify('Velouté de potimarron & châtaignes'), 'veloute-de-potimarron-chataignes');
+});
+
+test('photos : nouvelle liste et ancien champ « photo »', () => {
+  assert.deepEqual(listePhotos({ photo: 'photos/a.jpg' }), ['photos/a.jpg']);
+  assert.deepEqual(listePhotos({ photos: ['photos/a.jpg', 'photos/a-2.jpg'] }), ['photos/a.jpg', 'photos/a-2.jpg']);
+  assert.deepEqual(listePhotos({ photos: ['photos/b.jpg'], photo: 'photos/a.jpg' }), ['photos/b.jpg']);
+  assert.deepEqual(listePhotos({}), []);
+  const r = parseRecipe('---\ntitre: T\nphotos: [photos/t.jpg, photos/t-2.jpg]\n---\n## Ingrédients\n- 1 oeuf\n', 'recettes/t.md');
+  assert.match(serializeRecipe(r), /\nphotos: \[photos\/t\.jpg, photos\/t-2\.jpg\]\n/);
 });
