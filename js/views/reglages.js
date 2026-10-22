@@ -4,7 +4,7 @@ import * as store from '../store.js';
 import { GitHub } from '../github.js';
 import { esc, icon, retour, toast } from '../ui.js';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.0.1';
 
 export function reglagesVue(root) {
   const r = store.reglages();
@@ -22,7 +22,10 @@ export function reglagesVue(root) {
         <h2>Dépôt GitHub</h2>
         <p>Les recettes sont lues et enregistrées dans votre dépôt privé. Le jeton reste uniquement sur ce téléphone.</p>
         <label class="champ"><span>Jeton d'accès (fine-grained)</span>
-          <input name="jeton" type="password" value="${esc(r.jeton)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…">
+          <span class="jeton-ligne">
+            <input name="jeton" type="text" class="masque" value="${esc(r.jeton)}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore placeholder="github_pat_…">
+            <button type="button" class="bouton secondaire petit" id="voir">Afficher</button>
+          </span>
           <small>Limité au dépôt des recettes, permission « Contents : Read and write ».</small></label>
         <label class="champ"><span>Dépôt</span>
           <input name="depot" value="${esc(r.depot)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="utilisateur/mes-recettes"></label>
@@ -41,15 +44,24 @@ export function reglagesVue(root) {
     <p class="aide" style="text-align:center;margin-top:24px">Mes Recettes · version ${VERSION}</p>`;
 
   root.querySelector('#retour').onclick = () => retour();
+  const champJeton = root.querySelector('[name=jeton]');
+  root.querySelector('#voir').onclick = e => {
+    const masque = champJeton.classList.toggle('masque');
+    e.currentTarget.textContent = masque ? 'Afficher' : 'Masquer';
+  };
   const etat = root.querySelector('#etat');
   const afficherEtat = (cls, html) => { etat.className = `etat ${cls}`; etat.innerHTML = html; };
 
   root.querySelector('#f').addEventListener('submit', async e => {
     e.preventDefault();
     const d = new FormData(e.target);
-    const nouveau = { prenom: d.get('prenom').trim(), jeton: d.get('jeton').trim(), depot: d.get('depot').trim().replace(/^https:\/\/github.com\//, '').replace(/\/$/, '') };
+    const nouveau = { prenom: d.get('prenom').trim(), jeton: d.get('jeton').replace(/\s+/g, ''), depot: d.get('depot').trim().replace(/^https:\/\/github.com\//, '').replace(/\/$/, '') };
     store.enregistrerReglages(nouveau);
     if (!nouveau.jeton) { afficherEtat('', 'Réglages enregistrés (pas de jeton).'); return; }
+    if (!/^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/.test(nouveau.jeton)) {
+      afficherEtat('ko', `Ce n'est pas un jeton GitHub : il doit commencer par <b>github_pat_</b> (ici : « ${esc(nouveau.jeton.slice(0, 6))}… », ${nouveau.jeton.length} caractères). Touchez « Afficher » pour vérifier, puis recollez-le.`);
+      return;
+    }
     if (!/^[\w.-]+\/[\w.-]+$/.test(nouveau.depot)) { afficherEtat('ko', 'Le dépôt doit être de la forme <b>utilisateur/nom-du-depot</b>.'); return; }
     afficherEtat('', '<span class="spinner" style="display:inline-block;vertical-align:middle"></span> Connexion…');
     try {
