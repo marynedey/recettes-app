@@ -104,7 +104,7 @@ async function glisser(selecteur, sens) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x1, y }] });
   for (let k = 1; k <= 5; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x1 + (x2 - x1) * k / 5, y }] });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(700); // le défilement natif s'aimante sur l'onglet
 }
 
 before(async () => {
@@ -174,11 +174,11 @@ test('fiche : portions recalculées, « à ajuster », glisser entre onglets', a
   assert.equal(await ongletActif(), 'Ingrédients');
   await glisser('.fiche-feuille h1', 'gauche');
   assert.equal(await ongletActif(), 'Ingrédients', 'glisser sur le titre ne change pas d\'onglet');
-  await glisser('#contenu', 'gauche');
+  await glisser('#piste', 'gauche');
   assert.equal(await ongletActif(), 'Étapes');
-  await glisser('#contenu', 'gauche');
+  await glisser('#piste', 'gauche');
   assert.equal(await ongletActif(), 'Notes');
-  await glisser('#contenu', 'droite');
+  await glisser('#piste', 'droite');
   assert.equal(await ongletActif(), 'Étapes');
   assert.deepEqual(erreurs, []);
   await ctx.close();
@@ -285,7 +285,15 @@ test('aucun écran ne déborde en largeur, même avec le texte agrandi (réglage
       const tailles = els.map(e => parseFloat(getComputedStyle(e).fontSize));
       els.forEach((e, i) => { e.style.fontSize = `${tailles[i] * 1.3}px`; });
       const largeur = document.documentElement.clientWidth;
-      return els.filter(e => e.getBoundingClientRect().right > largeur + 1)
+      // Dans les zones qui défilent horizontalement (onglets, carrousel), les panneaux
+      // hors champ sont à droite par construction : seul le panneau affiché compte.
+      const horsChamp = e => {
+        const zone = e.closest('.onglets-piste, .carrousel, .v-defile');
+        if (!zone) return false;
+        const panneau = [...zone.children].find(c => c.contains(e));
+        return panneau && panneau.getBoundingClientRect().left >= zone.getBoundingClientRect().right - 1;
+      };
+      return els.filter(e => e.getBoundingClientRect().right > largeur + 1 && !horsChamp(e))
         .map(e => `${e.tagName.toLowerCase()}${e.className ? '.' + String(e.className).split(' ').join('.') : ''}`);
     });
     assert.deepEqual(depassent, [], `${ecran} : éléments plus larges que l'écran`);
@@ -361,17 +369,19 @@ test('photos : plusieurs photos, carrousel, photo principale et retrait', async 
   await ctx.close();
 });
 
-test('minuteurs : plusieurs à la fois, chacun à son étape, notifications', async () => {
+test('minuteurs : plusieurs à la fois, bandeau, notifications fidèles, fin de recette', async () => {
   depotInitial();
   await nouvellePage({ horloge: true });
   const notifications = () => page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications())
-    .map(n => ({ tag: n.tag, titre: n.title, texte: n.body })));
+    .map(n => ({ tag: n.tag, titre: n.title, texte: n.body, badge: n.badge })));
   await page.goto(BASE + '#/cuisine/tarte-tatin');
   await page.evaluate(() => navigator.serviceWorker.ready);
 
-  // Étape 1 : « réserver au frais 30 min ».
+  // Étape 1 : « réserver au frais 30 min ». Dès le lancement, il apparaît dans le bandeau.
   assert.equal(await page.textContent('#t-bloc'), '30:00');
   await page.click('#m-lecture');
+  assert.match(await page.locator('.minuteur-mini.ici').textContent(), /Cette étape.*30:00|Cette étape.*29:5\d/s);
+
   // Étape 6 : « cuire … 12 min », lancé alors que celui de l'étape 1 tourne encore.
   for (let k = 0; k < 5; k++) await page.click('#suiv');
   assert.match(await etape(), /Étape 6/);
@@ -379,10 +389,15 @@ test('minuteurs : plusieurs à la fois, chacun à son étape, notifications', as
   await page.click('#m-lecture');
   await page.clock.fastForward('00:05');
   assert.match(await page.textContent('#t-bloc'), /^11:5\d$/);
-  assert.match(await page.textContent('#lib'), /12 min/);
-  const autre = page.locator('.minuteur-mini');
-  assert.equal(await autre.count(), 1, 'le minuteur de l\'étape 1 reste visible');
+  const autre = page.locator('.minuteur-mini:not(.ici)');
+  assert.equal(await autre.count(), 1);
   assert.match(await autre.textContent(), /Étape 1.*29:5\d/s);
+  assert.equal(await page.locator('.minuteur-mini.ici').count(), 1);
+
+  // Les boutons Précédente / Suivante restent à l'écran même en bas d'une longue page.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  const suiv = await page.locator('#suiv').boundingBox();
+  assert.ok(suiv.y + suiv.height <= page.viewportSize().height, 'bouton Suivante visible');
 
   // 12 min plus tard : seul celui de l'étape 6 est terminé.
   await page.clock.fastForward('12:00');
@@ -390,27 +405,39 @@ test('minuteurs : plusieurs à la fois, chacun à son étape, notifications', as
   assert.match(await page.textContent('#lib'), /Terminé/);
   assert.match(await autre.textContent(), /Étape 1.*17:5\d/s);
 
+  // Notifications : texte exact sans mise à jour (heure de fin), pastille chronomètre, lien vers l'étape.
   const notifs = await notifications();
   assert.equal(notifs.length, 2, JSON.stringify(notifs));
   const n6 = notifs.find(n => n.tag === 'tarte-tatin|5|0');
   const n1 = notifs.find(n => n.tag === 'tarte-tatin|0|0');
   assert.match(n6.titre, /étape 6 : c'est prêt/);
-  assert.match(n1.titre, /étape 1/);
-  assert.match(n1.texte, /prêt à \d\d:\d\d/);
+  assert.match(n1.titre, /étape 1 · prêt à \d\d:\d\d/);
+  assert.match(n1.badge, /badge-minuteur\.png$/);
 
-  // Toucher le minuteur de l'étape 1 y ramène ; il survit à un rechargement de l'app.
-  await autre.click();
+  // Toucher une notification ouvre l'étape concernée (le service worker envoie « #/cuisine/…?e=0 »).
+  await page.goto(BASE + '#/');
+  await page.goto(BASE + '#/cuisine/tarte-tatin?e=0');
   assert.match(await etape(), /Étape 1/);
+  assert.match(page.url(), /#\/cuisine\/tarte-tatin$/, '?e= retiré de l\'adresse');
   assert.match(await page.textContent('#t-bloc'), /^17:5\d$/);
+
+  // Il survit à un rechargement de l'app.
   await page.reload();
   await page.locator('#t-bloc').waitFor();
   assert.match(await page.textContent('#t-bloc'), /^17:5\d$/);
 
-  // Réinitialiser supprime le minuteur et sa notification.
-  await page.click('#m-reset');
-  assert.equal(await page.textContent('#t-bloc'), '30:00');
-  await page.waitForTimeout(200);
-  assert.deepEqual((await notifications()).map(n => n.tag), ['tarte-tatin|5|0']);
+  // Terminer la recette avec un minuteur en cours : confirmation, puis tout est effacé.
+  let question = '';
+  page.once('dialog', d => { question = d.message(); d.dismiss(); });
+  for (let k = 0; k < 9; k++) await page.click('#suiv');
+  assert.match(question, /Un minuteur est encore en cours/);
+  assert.match(page.url(), /#\/cuisine\//, 'annuler reste en mode cuisine');
+  page.once('dialog', d => d.accept());
+  await page.click('#suiv');
+  await page.waitForURL(u => !/#\/cuisine\//.test(u)); // retour à la page d'avant le mode cuisine
+  await page.waitForTimeout(300);
+  assert.deepEqual(await notifications(), [], 'plus aucune notification après la fin de la recette');
+  assert.equal(await page.evaluate(() => localStorage.getItem('mr.minuteurs')), '{}');
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

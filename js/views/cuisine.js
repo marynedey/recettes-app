@@ -30,7 +30,8 @@ export function cuisine(root, { params, query }) {
   const portions = Number(query.get('p')) || base;
   const facteur = base ? portions / base : 1;
   const cle = 'mr.cuisine.' + r.slug;
-  let i = Math.min(Number(sessionStorage.getItem(cle)) || 0, steps.length - 1);
+  const etapeDemandee = query.has('e') ? Number(query.get('e')) : null;
+  let i = Math.min(etapeDemandee ?? (Number(sessionStorage.getItem(cle)) || 0), steps.length - 1);
   store.marquerCuisinee(r.slug);
 
   root.className = 'cuisine';
@@ -68,14 +69,14 @@ export function cuisine(root, { params, query }) {
     if (choixDuree >= timers.length) choixDuree = 0;
     const id = timers.length ? M.idMinuteur(r.slug, i, choixDuree) : null;
     courant = { s, timers, id };
-    // Les minuteurs de cette recette lancés ailleurs (autre étape, autre durée).
-    const autres = M.deRecette(r.slug).filter(m => m.id !== id);
+    // Tous les minuteurs lancés pour cette recette, celui de l'étape affichée compris.
+    const autres = M.deRecette(r.slug);
 
     root.querySelector('#barre').style.width = `${((i + 1) / steps.length) * 100}%`;
     corps.innerHTML = `
       ${autres.length ? `<div class="minuteurs-autres">${autres.map(m => `
-        <button class="minuteur-mini" data-id="${esc(m.id)}">${icon('clock')}
-          <span class="m-etape">Étape ${m.etape + 1}</span><span class="m-lib">${esc(m.label)}</span><span class="temps"></span></button>`).join('')}</div>` : ''}
+        <button class="minuteur-mini ${m.id === id ? 'ici' : ''}" data-id="${esc(m.id)}">${icon('clock')}
+          <span class="m-etape">${m.id === id ? 'Cette étape' : `Étape ${m.etape + 1}`}</span><span class="m-lib">${esc(m.label)}</span><span class="temps"></span></button>`).join('')}</div>` : ''}
       <div class="etape-label">Étape ${i + 1} <span>sur ${steps.length}</span></div>
       ${s.group ? `<div class="etape-groupe">${esc(s.group)}</div>` : ''}
       <p class="cuisine-texte">${texteEtape(s.texte)}</p>
@@ -95,7 +96,6 @@ export function cuisine(root, { params, query }) {
         </div>
         <div class="minuteur-actions">
           <button class="lien" id="m-reset" hidden>Réinitialiser</button>
-          ${M.estAndroid() ? `<button class="lien" id="m-horloge">${icon('clock')}Lancer dans l'Horloge Android</button>` : ''}
         </div>` : ''}`;
 
     const prec = root.querySelector('#prec');
@@ -105,7 +105,9 @@ export function cuisine(root, { params, query }) {
 
     corps.querySelectorAll('.minuteur-mini').forEach(b => b.addEventListener('click', () => {
       const m = M.obtenir(b.dataset.id);
-      if (m) allerA(m.etape, +m.id.split('|')[2]);
+      if (!m) return;
+      if (m.id === id) corps.querySelector('#minuteur')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      else allerA(m.etape, +m.id.split('|')[2]);
     }));
     corps.querySelectorAll('.choix-durees button').forEach(b => b.addEventListener('click', () => {
       choixDuree = +b.dataset.k;
@@ -122,11 +124,6 @@ export function cuisine(root, { params, query }) {
       corps.querySelector('#m-moins').onclick = () => M.ajuster(id, -60, defaut);
       corps.querySelector('#m-plus').onclick = () => M.ajuster(id, 60, defaut);
       corps.querySelector('#m-reset').onclick = () => M.supprimer(id);
-      const horloge = corps.querySelector('#m-horloge');
-      if (horloge) horloge.onclick = () => {
-        const m = M.obtenir(id);
-        M.lancerDansHorloge(m && !m.fini ? M.restant(m) : t.secondes, `${r.meta.titre} · étape ${i + 1}`);
-      };
     }
     tic();
   }
@@ -184,16 +181,25 @@ export function cuisine(root, { params, query }) {
     setTimeout(() => { if (actif) location.replace(fiche); }, 400);
   };
   const aller = d => {
-    if (i + d >= steps.length) { sessionStorage.removeItem(cle); quitter(); return; }
+    if (i + d >= steps.length) {
+      const restants = M.deRecette(r.slug).filter(m => !m.fini).length;
+      if (restants && !confirm(`${restants > 1 ? `${restants} minuteurs sont` : 'Un minuteur est'} encore en cours. Terminer la recette et ${restants > 1 ? 'les' : 'l\''}arrêter ?`)) return;
+      M.arreterRecette(r.slug); // minuteurs et notifications de la recette effacés
+      sessionStorage.removeItem(cle);
+      quitter();
+      return;
+    }
     allerA(i + d);
   };
   const surRetour = e => { if (e.state?.cuisine === r.slug) { afficher(e.state.etape, choixApresRetour); choixApresRetour = 0; } };
   window.addEventListener('popstate', surRetour);
-  if (history.state?.cuisine === r.slug) {
+  if (history.state?.cuisine === r.slug && etapeDemandee === null) {
     i = Math.min(history.state.etape, steps.length - 1); // page rechargée : l'historique existe déjà
   } else {
-    history.replaceState({ cuisine: r.slug, etape: 0 }, '');
-    for (let n = 1; n <= i; n++) history.pushState({ cuisine: r.slug, etape: n }, '');
+    // « ?e=<étape> » (notification touchée) ne sert qu'à l'ouverture : on le retire de l'adresse.
+    const adresse = location.hash.replace(/([?&])e=\d+&?/, '$1').replace(/[?&]$/, '');
+    history.replaceState({ cuisine: r.slug, etape: 0 }, '', adresse);
+    for (let n = 1; n <= i; n++) history.pushState({ cuisine: r.slug, etape: n }, '', adresse);
   }
 
   root.querySelector('#prec').onclick = () => aller(-1);

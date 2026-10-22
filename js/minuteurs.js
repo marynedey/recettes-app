@@ -53,6 +53,11 @@ export function ajuster(id, d, defaut) {
   maj(id);
 }
 
+/** Arrête et efface tous les minuteurs d'une recette (fin de la recette). */
+export function arreterRecette(slug) {
+  deRecette(slug).forEach(m => supprimer(m.id));
+}
+
 export function supprimer(id) {
   delete tous[id];
   sauver();
@@ -87,7 +92,6 @@ function sonnerie() {
 }
 
 // Vérifie les minuteurs toutes les demi-secondes, quel que soit l'écran affiché.
-let dernierNotif = 0;
 function tic() {
   let change = false;
   for (const m of Object.values(tous)) {
@@ -97,18 +101,19 @@ function tic() {
       notifier(m);
     }
     // Ménage : un minuteur terminé depuis plus de 6 h n'a plus d'intérêt.
-    if (m.fini && m.finiA && Date.now() - m.finiA > 6 * 3600e3) { delete tous[m.id]; change = true; }
+    if (m.fini && m.finiA && Date.now() - m.finiA > 6 * 3600e3) { delete tous[m.id]; fermerNotification(m.id); change = true; }
     if (m.fini && !m.finiA) { m.finiA = Date.now(); change = true; }
-  }
-  // Notifications des minuteurs en cours rafraîchies toutes les 30 s (temps restant).
-  if (Date.now() - dernierNotif > 30000) {
-    dernierNotif = Date.now();
-    Object.values(tous).filter(enCours).forEach(notifier);
   }
   if (change) { sauver(); prevenir(); }
 }
 setInterval(tic, 500);
-document.addEventListener('visibilitychange', () => { dernierNotif = 0; tic(); });
+document.addEventListener('visibilitychange', () => {
+  // Au retour dans l'app (autre onglet, autre appareil…), on relit l'état enregistré.
+  if (document.hidden) return;
+  try { tous = JSON.parse(localStorage.getItem(CLE)) || {}; } catch { /* garde l'état courant */ }
+  tic();
+  resynchroniser();
+});
 
 /* ---------- notifications ---------- */
 
@@ -127,44 +132,46 @@ export const duree = s => {
   return `${s} s`;
 };
 
+// Le texte d'une notification ne dépend pas du temps qui passe (« prêt à 21:42 ») :
+// il reste exact même quand Android met l'app en pause et qu'elle ne peut plus le rafraîchir.
 async function notifier(m) {
   if (!m || !notificationsPossibles() || Notification.permission !== 'granted') return;
   const reg = await navigator.serviceWorker.ready.catch(() => null);
   if (!reg) return;
   const titre = `${m.titre} · étape ${m.etape + 1}`;
-  const commun = { tag: m.id, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', data: { url: `./#/cuisine/${encodeURIComponent(m.slug)}` } };
+  const commun = {
+    tag: m.id, icon: 'icons/icon-192.png', badge: 'icons/badge-minuteur.png',
+    data: { url: `#/cuisine/${encodeURIComponent(m.slug)}?e=${m.etape}` },
+  };
   try {
     if (m.fini) {
       await reg.showNotification(`⏰ ${titre} : c'est prêt !`, {
         ...commun, body: m.label, renotify: true, requireInteraction: true, vibrate: [400, 200, 400, 200, 400],
       });
     } else if (m.fin !== null) {
-      await reg.showNotification(`⏳ ${titre}`, {
-        ...commun, body: `${m.label} — prêt à ${heure(m.fin)} (encore ${duree(restant(m))})`, silent: true, renotify: false,
+      await reg.showNotification(`⏳ ${titre} · prêt à ${heure(m.fin)}`, {
+        ...commun, body: `${m.label} (${duree(m.total)})`, timestamp: m.fin, silent: true, renotify: false,
       });
     } else {
-      await reg.showNotification(`⏸ ${titre}`, { ...commun, body: `${m.label} — en pause, reste ${duree(m.reste)}`, silent: true });
+      await reg.showNotification(`⏸ ${titre} · en pause`, { ...commun, body: `${m.label} — reste ${duree(m.reste)}`, silent: true });
     }
   } catch { /* notifications indisponibles */ }
 }
+
+/** Remet les notifications en accord avec les minuteurs réels (et ferme celles qui n'ont plus lieu d'être). */
+export async function resynchroniser() {
+  if (!notificationsPossibles() || Notification.permission !== 'granted') return;
+  const reg = await navigator.serviceWorker.ready.catch(() => null);
+  if (!reg) return;
+  for (const n of await reg.getNotifications().catch(() => [])) {
+    if (n.tag && n.tag.includes('|') && !tous[n.tag]) n.close();
+  }
+  Object.values(tous).forEach(notifier);
+}
+resynchroniser();
 
 async function fermerNotification(id) {
   if (!notificationsPossibles()) return;
   const reg = await navigator.serviceWorker.ready.catch(() => null);
   (await reg?.getNotifications({ tag: id }).catch(() => []) || []).forEach(n => n.close());
-}
-
-/* ---------- app Horloge d'Android ---------- */
-
-export const estAndroid = () => /Android/i.test(navigator.userAgent);
-
-/**
- * Lance le même minuteur dans l'app Horloge d'Android (intention SET_TIMER) :
- * compte à rebours en direct dans les notifications, sonne même app fermée.
- */
-export function lancerDansHorloge(secondes, message) {
-  location.href = 'intent:#Intent;action=android.intent.action.SET_TIMER;'
-    + `i.android.intent.extra.alarm.LENGTH=${Math.max(1, Math.round(secondes))};`
-    + `S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(message)};`
-    + 'B.android.intent.extra.alarm.SKIP_UI=true;end';
 }
