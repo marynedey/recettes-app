@@ -1271,6 +1271,15 @@ test('écrans : toujours ouverts en haut, la position n\'est retrouvée qu\'au r
   assert.equal(await page.evaluate(() => window.scrollY), y, 'retour arrière : position retrouvée');
   await page.goto(BASE + '#/reglages');
   assert.equal(await page.evaluate(() => window.scrollY), 0, 'réglages rouverts en haut');
+  // Écran quitté juste après avoir défilé (avant que l'événement « scroll » n'arrive) : position gardée quand même.
+  await page.goBack();
+  await page.waitForTimeout(200);
+  const y2 = await page.evaluate(() => { window.scrollTo(0, 60); const v = window.scrollY; location.hash = '#/reglages'; return v; });
+  assert.ok(y2 > 0);
+  await page.waitForURL(/#\/reglages$/);
+  await page.goBack();
+  await page.waitForTimeout(200);
+  assert.equal(await page.evaluate(() => window.scrollY), y2, 'position gardée même en partant aussitôt');
 
   // Le niveau n'apparaît plus, et disparaît du fichier à l'enregistrement.
   await page.goto(BASE + '#/recette/risotto-aux-champignons');

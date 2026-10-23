@@ -53,6 +53,9 @@ const positions = new Map();
 let dernierRendu = '';
 
 function rendre() {
+  // Position de l'écran qu'on quitte, notée tout de suite : l'événement « scroll » arrive un peu après
+  // le défilement, trop tard si on change d'écran aussitôt.
+  positions.set(dernierRendu, window.scrollY);
   // Après « Terminé » en mode cuisine, on arrive sur la fiche ; si « retour » ramène alors
   // au mode cuisine de cette recette, on va à l'accueil à la place.
   const apresCuisine = sessionStorage.getItem('mr.apresCuisine');
