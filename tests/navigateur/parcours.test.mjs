@@ -80,9 +80,10 @@ async function fauxGitHub(route) {
 
 let navigateur, ctx, page, erreurs;
 
-async function nouvellePage({ configure = true, horloge = false } = {}) {
+async function nouvellePage({ configure = true, horloge = false, avant = null } = {}) {
   ctx = await navigateur.newContext({ ...devices['Pixel 7'], locale: 'fr-FR', serviceWorkers: 'allow', permissions: ['notifications'] });
   await ctx.route('https://api.github.com/**', fauxGitHub);
+  if (avant) await avant(ctx);
   page = await ctx.newPage();
   if (horloge) await page.clock.install(); // temps simulé : on avance de plusieurs minutes d'un coup
   erreurs = [];
@@ -888,6 +889,108 @@ test('réglages : erreurs claires, version affichée, app non configurée', asyn
   await page.click('#tester');
   await page.locator('#etat.ko').waitFor();
   assert.match(await page.textContent('#etat'), /jeton|Bad credentials|refus/i);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('serveur des minuteurs : réglage, minuteurs planifiés et annulés, notification reçue app fermée', async () => {
+  depotInitial();
+  const appels = [];
+  const CLE = Buffer.alloc(65, 7).toString('base64url');
+  await nouvellePage({
+    avant: async c => {
+      // Faux serveur des minuteurs.
+      await c.route('https://minuteurs.test/**', route => {
+        const req = route.request();
+        const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': '*', 'access-control-allow-headers': '*' };
+        if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+        const chemin = decodeURIComponent(new URL(req.url()).pathname);
+        appels.push({ methode: req.method(), chemin, corps: req.postData() ? JSON.parse(req.postData()) : null });
+        return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(chemin === '/cle' ? { cle: CLE } : { ok: true }) });
+      });
+      // Chromium de test n'a pas de service de notifications : abonnement simulé.
+      await c.addInitScript(() => {
+        let abonne = null;
+        PushManager.prototype.getSubscription = async () => abonne;
+        PushManager.prototype.subscribe = async o => (abonne = {
+          endpoint: 'https://fcm.googleapis.com/fcm/send/faux',
+          options: { applicationServerKey: o.applicationServerKey.buffer },
+          unsubscribe: async () => { abonne = null; return true; },
+        });
+      });
+    },
+  });
+  const planifies = () => appels.filter(a => a.chemin.startsWith('/minuteurs/'));
+
+  // Sans serveur dans les réglages : rien ne part.
+  await page.goto(BASE + '#/cuisine/tarte-tatin');
+  await page.click('#m-lecture');
+  await page.click('#m-lecture');
+  assert.equal(appels.length, 0);
+  await page.goto(BASE + '#/');
+
+  // Réglages : adresse invalide, puis la bonne ; une notification d'essai est planifiée.
+  await page.goto(BASE + '#/reglages');
+  await page.fill('[name=serveur]', 'http://minuteurs.test');
+  await page.click('#tester-serveur');
+  assert.match(await page.textContent('#etat-serveur'), /https:\/\//);
+  await page.fill('[name=serveur]', 'https://minuteurs.test/');
+  await page.click('#tester-serveur');
+  await page.locator('#etat-serveur.ok').waitFor();
+  const appareil = await page.evaluate(() => localStorage.getItem('mr.appareil'));
+  const essai = planifies().at(-1);
+  assert.equal(essai.methode, 'PUT');
+  assert.equal(essai.chemin, `/minuteurs/${appareil}|essai`);
+  assert.equal(essai.corps.adresse, 'https://fcm.googleapis.com/fcm/send/faux');
+  assert.ok(Math.abs(essai.corps.fin - Date.now() - 10e3) < 3000);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('mr.reglages')).jeton), JETON, 'le jeton est gardé');
+
+  // Mode cuisine : lancer planifie, pause annule, reprendre replanifie, recommencer annule.
+  appels.length = 0;
+  await page.goto(BASE + '#/cuisine/tarte-tatin');
+  await page.click('#m-lecture');
+  await page.waitForTimeout(300);
+  const id = `${appareil}|tarte-tatin|0|0`;
+  assert.deepEqual(planifies().map(a => [a.methode, a.chemin]), [['PUT', `/minuteurs/${id}`]]);
+  assert.ok(Math.abs(planifies()[0].corps.fin - Date.now() - 30 * 60e3) < 3000, 'fin dans 30 min');
+  await page.click('#m-lecture');
+  await page.waitForTimeout(300);
+  assert.deepEqual(planifies().at(-1).methode, 'DELETE');
+  await page.click('#m-lecture');
+  await page.waitForTimeout(300);
+  assert.deepEqual(planifies().at(-1).methode, 'PUT');
+
+  // La copie pour le service worker suit les minuteurs.
+  const copie = await page.evaluate(async () => (await caches.match(new URL('minuteurs.json', document.baseURI).href)).json());
+  assert.ok(copie['tarte-tatin|0|0'].fin > Date.now());
+
+  page.once('dialog', d => d.accept());
+  await page.click('#recommencer');
+  await page.waitForTimeout(300);
+  assert.deepEqual(planifies().at(-1), { methode: 'DELETE', chemin: `/minuteurs/${id}`, corps: null });
+
+  // Réception d'une notification du serveur (app en arrière-plan) : le service worker
+  // retrouve le minuteur terminé dans la copie et l'annonce.
+  const cdp = await ctx.newCDPSession(page);
+  const inscriptions = new Promise(ok => cdp.on('ServiceWorker.workerRegistrationUpdated', e => { if (e.registrations.length) ok(e.registrations); }));
+  await cdp.send('ServiceWorker.enable');
+  const [{ registrationId }] = await inscriptions;
+  const recevoir = async () => {
+    await cdp.send('ServiceWorker.deliverPushMessage', { origin: BASE.slice(0, -1), registrationId, data: '' });
+    await page.waitForTimeout(500);
+    return page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications()).map(n => ({ tag: n.tag, titre: n.title })));
+  };
+  await page.evaluate(async () => {
+    const m = { id: 'tarte-tatin|5|0', slug: 'tarte-tatin', titre: 'Tarte tatin', etape: 5, label: 'Cuire 12 min', total: 720, fin: Date.now() - 1000, reste: 0, fini: false };
+    await (await caches.open('mr-donnees')).put(new URL('minuteurs.json', document.baseURI).href, new Response(JSON.stringify({ [m.id]: m })));
+  });
+  let notifs = await recevoir();
+  assert.deepEqual(notifs.find(n => n.tag === 'tarte-tatin|5|0'), { tag: 'tarte-tatin|5|0', titre: 'Tarte tatin · étape 6 : c\'est prêt !'.replace(/^/, '⏰ ') });
+
+  // Aucun minuteur terminé (notification d'essai) : message générique.
+  await page.evaluate(async () => (await caches.open('mr-donnees')).put(new URL('minuteurs.json', document.baseURI).href, new Response('{}')));
+  notifs = await recevoir();
+  assert.ok(notifs.some(n => n.titre === '⏰ Minuteur terminé'));
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

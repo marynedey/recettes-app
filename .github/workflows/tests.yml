@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: 22
       - name: Syntaxe de tous les fichiers JavaScript
-        run: for f in sw.js js/*.js js/views/*.js; do node --check "$f"; done
+        run: for f in sw.js js/*.js js/views/*.js serveur/src/*.js; do node --check "$f"; done
       - name: Format des recettes, quantités, minuteurs, versions
         run: npm test
 

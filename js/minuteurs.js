@@ -2,6 +2,8 @@
 // (ils continuent si on change d'étape, de page, ou si l'app est rouverte),
 // avec une notification par minuteur en cours.
 
+import * as push from './push.js';
+
 const CLE = 'mr.minuteurs';
 const ecouteurs = new Set();
 
@@ -12,7 +14,15 @@ const ecouteurs = new Set();
 let tous = {};
 try { tous = JSON.parse(localStorage.getItem(CLE)) || {}; } catch { tous = {}; }
 
-const sauver = () => { try { localStorage.setItem(CLE, JSON.stringify(tous)); } catch { /* stockage plein */ } };
+const sauver = () => {
+  try { localStorage.setItem(CLE, JSON.stringify(tous)); } catch { /* stockage plein */ }
+  // Copie pour le service worker (qui n'a pas accès au localStorage) : à la réception d'une
+  // notification du serveur des minuteurs, il y retrouve quel minuteur est terminé.
+  if ('caches' in window) {
+    caches.open('mr-donnees').then(c => c.put(new URL('minuteurs.json', document.baseURI).href,
+      new Response(JSON.stringify(tous), { headers: { 'Content-Type': 'application/json' } }))).catch(() => {});
+  }
+};
 const prevenir = () => ecouteurs.forEach(fn => fn());
 
 export const idMinuteur = (slug, etape, choix) => `${slug}|${etape}|${choix}`;
@@ -59,6 +69,7 @@ export function arreterRecette(slug) {
 }
 
 export function supprimer(id) {
+  if (enCours(tous[id])) push.annuler(id);
   delete tous[id];
   sauver();
   fermerNotification(id);
@@ -67,6 +78,9 @@ export function supprimer(id) {
 
 function maj(id) {
   sauver();
+  // Serveur des minuteurs (facultatif) : il préviendra le téléphone même app fermée.
+  const m = tous[id];
+  if (enCours(m)) push.planifier(id, m.fin); else push.annuler(id);
   notifier(tous[id]);
   prevenir();
 }
@@ -97,8 +111,7 @@ function tic() {
   for (const m of Object.values(tous)) {
     if (enCours(m) && restant(m) === 0) {
       m.fini = true; m.fin = null; m.reste = 0; change = true;
-      sonnerie();
-      notifier(m);
+      signalerFin(m);
     }
     // Ménage : un minuteur terminé depuis plus de 6 h n'a plus d'intérêt.
     if (m.fini && m.finiA && Date.now() - m.finiA > 6 * 3600e3) { delete tous[m.id]; fermerNotification(m.id); change = true; }
@@ -115,7 +128,20 @@ document.addEventListener('visibilitychange', () => {
   resynchroniser();
 });
 
+/** Sonne et notifie, sauf si le serveur des minuteurs l'a déjà fait (app en arrière-plan). */
+async function signalerFin(m) {
+  if (await dejaSignale(m.id)) return;
+  sonnerie();
+  notifier(m);
+}
+
 /* ---------- notifications ---------- */
+
+async function dejaSignale(id) {
+  if (!notificationsPossibles() || Notification.permission !== 'granted') return false;
+  const reg = await navigator.serviceWorker.ready.catch(() => null);
+  return (await reg?.getNotifications({ tag: id }).catch(() => []) || []).some(n => n.title.startsWith('⏰'));
+}
 
 export const notificationsPossibles = () => 'Notification' in window && 'serviceWorker' in navigator;
 
