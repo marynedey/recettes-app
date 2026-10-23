@@ -1003,7 +1003,7 @@ test('serveur des minuteurs : réglage, minuteurs planifiés et annulés, notifi
   await ctx.close();
 });
 
-test('fiche : la hauteur suit chaque onglet, et le glissement se cale vite', async () => {
+test('fiche : la hauteur suit chaque onglet, la pastille suit le glissement', async () => {
   depotInitial();
   await nouvellePage();
   await page.goto(BASE + '#/recette/cinnamon-rolls');
@@ -1021,17 +1021,19 @@ test('fiche : la hauteur suit chaque onglet, et le glissement se cale vite', asy
   h = await hauteurs();
   assert.equal(h.piste, h.panneau, 'aucune étape coupée');
 
-  // Le doigt levé, la piste est calée sur l'onglet en moins de 0,3 s.
+  // Le doigt levé, la piste se cale sur l'onglet, la pastille et la hauteur suivent.
   const zone = await page.locator('#piste').boundingBox();
   const cdp = await ctx.newCDPSession(page);
   const y = zone.y + 40;
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y }] });
   for (let k = 1; k <= 4; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 300 - 40 * k, y }] });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(800);
   const { gauche, largeur } = await page.evaluate(() => { const p = document.querySelector('#piste'); return { gauche: p.scrollLeft, largeur: p.clientWidth }; });
   assert.equal(await ongletActif(), 'Notes');
   assert.ok(Math.abs(gauche - 2 * largeur) < 2, `calée (${gauche} / ${2 * largeur})`);
+  h = await page.evaluate(() => { const p = document.querySelector('#piste'); return { piste: p.offsetHeight, panneau: p.querySelector('[data-o=notes]').offsetHeight }; });
+  assert.equal(h.piste, h.panneau, 'hauteur de l\'onglet Notes une fois au repos');
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

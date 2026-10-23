@@ -373,12 +373,11 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .aide-bloc th, .aide-bloc td { text-align: left; padding: 5px 6px 5px 0; border-bottom: 1px solid var(--bordure); }
 .aide-bloc th { color: var(--gris); font-weight: 500; }
 .onglets-piste {
-  display: flex; align-items: flex-start; overflow: hidden;
-  scrollbar-width: none; margin: 0 -20px; touch-action: pan-y;
-  transition: height .25s ease;
+  display: flex; align-items: flex-start; overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; scrollbar-width: none; margin: 0 -20px;
 }
 .onglets-piste::-webkit-scrollbar { display: none; }
-.panneau { flex: 0 0 100%; padding: 0 20px; min-height: 45vh; }
+.panneau { flex: 0 0 100%; padding: 0 20px; scroll-snap-align: start; scroll-snap-stop: always; min-height: 45vh; }
 .retour-tete { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 
 /* ---------- courses ---------- */
