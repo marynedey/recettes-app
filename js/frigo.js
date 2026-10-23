@@ -51,3 +51,17 @@ export function avecCeQueJai(recettes, mesIngredients, placard = PLACARD_DEFAUT)
   return resultats.sort((a, b) => a.manquants.length - b.manquants.length || b.part - a.part
     || a.recette.meta.titre.localeCompare(b.recette.meta.titre, 'fr'));
 }
+
+/* ---------- sur internet ---------- */
+
+// Recherches toutes prêtes (pas de lecture des sites depuis l'app : on ouvre la page de recherche,
+// puis « Partager → Recettes » sur la recette choisie l'importe toute seule).
+export function liensRecherche(mesIngredients) {
+  const mots = String(mesIngredients || '').split(/[,;\n]|\s+et\s+/i).map(s => s.trim()).filter(Boolean).join(' ');
+  if (!mots) return [];
+  const q = encodeURIComponent(mots);
+  return [
+    { nom: 'Marmiton', url: `https://www.marmiton.org/recettes/recherche.aspx?aqt=${q}` },
+    { nom: 'Google', url: `https://www.google.com/search?q=${encodeURIComponent(`recette ${mots}`)}` },
+  ];
+}
