@@ -1728,3 +1728,31 @@ test('avec ce que j\'ai : depuis l\'accueil, recettes classées par ce qui manqu
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
+
+test('avec ce que j\'ai : chercher sur internet, puis importer le lien collé', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/frigo');
+  await page.locator('#mes').waitFor();
+  assert.ok(await page.locator('#internet').isHidden(), 'rien à chercher sans ingrédients');
+  await page.fill('#mes', 'chocolat, noisettes');
+  assert.match(await page.textContent('#resultats-frigo'), /cherchons sur internet/);
+  const liens = await page.locator('#liens a').evaluateAll(as => as.map(a => [a.textContent.trim(), a.href, a.target, a.rel]));
+  assert.deepEqual(liens, [
+    ['Marmiton', 'https://www.marmiton.org/recettes/recherche.aspx?aqt=chocolat%20noisettes', '_blank', 'noopener'],
+    ['Google', 'https://www.google.com/search?q=recette%20chocolat%20noisettes', '_blank', 'noopener'],
+  ]);
+  await sansDebordement('avec ce que j\'ai, sur internet');
+
+  // Lien invalide : message ; lien collé (avec du texte autour) : l'import part tout seul.
+  await page.fill('#lien', 'pas un lien');
+  await page.evaluate(() => document.querySelector('#coller').requestSubmit());
+  assert.match(await page.textContent('.toast'), /Colle le lien/);
+  await page.fill('#lien', 'Regarde ça https://www.marmiton.org/recettes/recette_brownies_12345.aspx trop bon');
+  await page.click('#coller button');
+  await page.locator('.banniere .spinner').waitFor();
+  const demande = ecritures.find(w => w.chemin.startsWith('import/a-traiter/'));
+  assert.equal(JSON.parse(demande.contenu).url, 'https://www.marmiton.org/recettes/recette_brownies_12345.aspx');
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});

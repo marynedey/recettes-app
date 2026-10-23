@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { parseRecipe } from '../js/format.js';
-import { avecCeQueJai, lireListe, couvert, dePlacard } from '../js/frigo.js';
+import { avecCeQueJai, lireListe, couvert, dePlacard, liensRecherche } from '../js/frigo.js';
 
 const dir = new URL('./fixtures/', import.meta.url);
 const recettes = readdirSync(dir).map(f => parseRecipe(readFileSync(new URL(f, dir), 'utf8'), `recettes/${f}`));
@@ -45,4 +45,12 @@ test('avec ce que j\'ai : rien d\'utile, rien d\'affiché ; placard personnalis�
   const risotto = avecCeQueJai(recettes, 'riz, champignons', 'sel, poivre, eau, huile')[0];
   assert.equal(risotto.recette.meta.titre, 'Risotto aux champignons');
   assert.ok(!risotto.manquants.includes('huile d\'olive'), 'huile ajoutée au placard');
+});
+
+test('sur internet : recherches avec mes ingrédients', () => {
+  assert.deepEqual(liensRecherche('poulet, riz et œufs'), [
+    { nom: 'Marmiton', url: 'https://www.marmiton.org/recettes/recherche.aspx?aqt=poulet%20riz%20%C5%93ufs' },
+    { nom: 'Google', url: 'https://www.google.com/search?q=recette%20poulet%20riz%20%C5%93ufs' },
+  ]);
+  assert.deepEqual(liensRecherche('  '), []);
 });

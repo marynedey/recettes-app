@@ -5,7 +5,7 @@ import { GitHub } from '../github.js';
 import * as push from '../push.js';
 import { esc, icon, retour, toast } from '../ui.js';
 
-export const VERSION = '1.18.0';
+export const VERSION = '1.19.0';
 
 export function reglagesVue(root) {
   const r = store.reglages();
