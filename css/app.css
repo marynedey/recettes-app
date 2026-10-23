@@ -142,11 +142,12 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .sur-internet { margin-top: 22px; }
 .sur-internet[hidden] { display: none; }
 .sur-internet h2 { margin: 0 0 6px; }
-.liens-internet { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+/* Même espace (12 px) entre chaque ligne, quelle que soit la taille du texte : champ puis bouton, en pleine largeur. */
+.sur-internet .aide { margin: 0 0 12px; }
+.liens-internet { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 12px; }
 .liens-internet .bouton { flex: 1 1 130px; }
-.coller-lien { display: flex; gap: 8px; flex-wrap: wrap; }
-.coller-lien input { flex: 1 1 180px; min-width: 0; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--bordure); background: var(--fond); color: var(--encre); }
-.coller-lien .bouton { flex: none; }
+.coller-lien { display: flex; flex-direction: column; gap: 12px; }
+.coller-lien input { width: 100%; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--bordure); background: var(--fond); color: var(--encre); }
 .placard { margin-top: 22px; color: var(--gris); font-size: 14px; }
 .placard summary { cursor: pointer; min-height: 32px; }
 .placard summary b { color: var(--encre); font-weight: 500; }
