@@ -454,3 +454,12 @@ body.sans-defilement { overflow: hidden; }
   * { transition: none !important; animation: none !important; }
 }
 .page.sur-lien .barre-bas { display: none; }
+/* Glisser un article pour le retirer : fond rouge révélé derrière la ligne. */
+.article { position: relative; }
+.art-ligne { position: relative; z-index: 1; background: var(--carte); touch-action: pan-y; }
+.article.glisse::before {
+  content: 'Retirer'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 18px; background: #A3341A; color: #fff; font-weight: 600; font-size: 14px;
+}
+.article.glisse::after { content: 'Retirer'; position: absolute; top: 0; bottom: 0; right: 18px; display: flex; align-items: center; color: #fff; font-weight: 600; font-size: 14px; }
+button.toast-action { background: none; border: 0; padding: 0; font: inherit; }

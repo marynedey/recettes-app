@@ -110,7 +110,7 @@ test('liste gardée sur le téléphone : prévoir, ajouter, retirer', async () =
   const memoire = new Map();
   globalThis.localStorage = { getItem: k => memoire.get(k) ?? null, setItem: (k, v) => memoire.set(k, String(v)) };
   const C = await import('../js/courses.js');
-  assert.deepEqual(C.etat(), { prevues: [], ajouts: [], articles: {} });
+  assert.deepEqual(C.etat(), { prevues: [], ajouts: [], articles: {}, masques: {} });
   // Ancienne liste (avant les articles à la main) : relue sans erreur.
   memoire.set('mr.courses', JSON.stringify({ prevues: [{ slug: 'a', portions: 2 }], articles: {} }));
   assert.deepEqual(C.etat().ajouts, []);
@@ -126,5 +126,29 @@ test('liste gardée sur le téléphone : prévoir, ajouter, retirer', async () =
   assert.equal(ajout.texte, '2 citrons');
   C.retirerArticle(ajout.id);
   assert.deepEqual(C.etat().ajouts, []);
+  delete globalThis.localStorage;
+});
+
+test('retirer un article d\'un glissement : supprimé, masqué, revient si les quantités changent, annulable', async () => {
+  const memoire = new Map();
+  globalThis.localStorage = { getItem: k => memoire.get(k) ?? null, setItem: (k, v) => memoire.set(k, String(v)) };
+  const C = await import('../js/courses.js');
+  const t = recette('---\ntitre: Tarte\nportions: 2\n---\n## Ingrédients\n- 100 g sucre\n- 2 citrons\n', 'tarte');
+  const liste = (portions = 2) => C.listeDeCourses([{ recette: t, portions }], C.etat().ajouts)
+    .filter(a => !C.estMasque(a, C.etat().masques));
+
+  // Article ajouté à la main : vraiment supprimé.
+  C.ajouterArticle('papier cuisson');
+  const annuler = C.supprimerArticle(trouver(liste(), 'Papier cuisson'));
+  assert.deepEqual(C.etat().ajouts, []);
+  annuler();
+  assert.equal(C.etat().ajouts.length, 1, 'annuler le remet');
+
+  // Article d'une recette : masqué tant que rien ne change…
+  C.supprimerArticle(trouver(liste(), 'Sucre'));
+  assert.equal(trouver(liste(), 'Sucre'), undefined);
+  assert.ok(trouver(liste(), 'Citrons'));
+  // … mais revient si on prévoit plus de personnes (il en faut davantage).
+  assert.equal(texteQuantites(trouver(liste(4), 'Sucre')), '200 g');
   delete globalThis.localStorage;
 });

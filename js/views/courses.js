@@ -15,7 +15,7 @@ export function courses(root) {
     const e = C.etat();
     // Recettes supprimées entre-temps : on les oublie.
     const prevues = e.prevues.map(p => ({ ...p, recette: store.recette(p.slug) })).filter(p => p.recette);
-    const articles = C.listeDeCourses(prevues, e.ajouts);
+    const articles = C.listeDeCourses(prevues, e.ajouts).filter(a => !C.estMasque(a, e.masques));
     const infos = a => {
       const s = e.articles[a.cle] || {};
       const m = C.manque(a, s.dispo);
@@ -83,6 +83,13 @@ export function courses(root) {
     // Articles
     root.querySelectorAll('.article').forEach(el => {
       const cle = el.dataset.cle;
+      glisserPourSupprimer(el, () => {
+        const a = articles.find(x => x.cle === cle);
+        const annuler = C.supprimerArticle(a);
+        ouverts.delete(cle);
+        rendre();
+        toast(`« ${a.nom} » retiré de la liste`, 5000, { texte: 'Annuler', faire: () => { annuler(); rendre(); } });
+      });
       const maj = f => { const s = C.etat(); s.articles[cle] = { ...s.articles[cle], ...f }; C.enregistrer(s); };
       el.querySelector('input[type=checkbox]').addEventListener('change', ev => { maj({ coche: ev.target.checked }); rendre(); });
       el.querySelector('.art-corps').addEventListener('click', () => {
@@ -102,7 +109,7 @@ export function courses(root) {
     });
     root.querySelector('#vider')?.addEventListener('click', () => {
       if (!confirm('Retirer toutes les recettes prévues et vider la liste ?')) return;
-      C.enregistrer({ prevues: [], ajouts: [], articles: {} }); ouverts = new Set(); rendre();
+      C.enregistrer({ prevues: [], ajouts: [], articles: {}, masques: {} }); ouverts = new Set(); rendre();
     });
     root.querySelector('#partager')?.addEventListener('click', () => partager(articles, infos));
   };
@@ -131,6 +138,45 @@ function article(a, info, ouvert) {
         <span>${esc(a.quantites[0].unite || 'unité(s)')}</span></label>` : ''}
     </div>` : ''}
   </div>`;
+}
+
+/** Glisser un article vers la gauche ou la droite le retire (au-delà d'un tiers de la largeur). */
+function glisserPourSupprimer(el, supprimer) {
+  const ligne = el.querySelector('.art-ligne');
+  let doigt = null, x0 = 0, y0 = 0, dx = 0, mode = null, bloquerClic = 0;
+  const remettre = () => { ligne.style.transition = 'transform .2s'; ligne.style.transform = ''; el.classList.remove('glisse'); };
+  ligne.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' || doigt !== null) return;
+    doigt = e.pointerId; x0 = e.clientX; y0 = e.clientY; dx = 0; mode = null;
+  });
+  ligne.addEventListener('pointermove', e => {
+    if (e.pointerId !== doigt) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!mode && Math.abs(mx) > 10 && Math.abs(mx) > Math.abs(my)) {
+      mode = 'glisse';
+      ligne.setPointerCapture(doigt);
+      ligne.style.transition = 'none';
+      el.classList.add('glisse');
+    } else if (!mode && Math.abs(my) > 10) mode = 'defile';
+    if (mode !== 'glisse') return;
+    dx = mx;
+    ligne.style.transform = `translateX(${dx}px)`;
+  });
+  const fin = e => {
+    if (e.pointerId !== doigt) return;
+    doigt = null;
+    if (mode !== 'glisse') return;
+    bloquerClic = Date.now(); // le doigt levé ne doit pas aussi cocher ou déplier
+    if (Math.abs(dx) < ligne.offsetWidth / 3 || e.type === 'pointercancel') { remettre(); return; }
+    ligne.style.transition = 'transform .18s ease-in';
+    ligne.style.transform = `translateX(${Math.sign(dx) * ligne.offsetWidth}px)`;
+    setTimeout(supprimer, 180);
+  };
+  ligne.addEventListener('pointerup', fin);
+  ligne.addEventListener('pointercancel', fin);
+  ligne.addEventListener('click', e => {
+    if (Date.now() - bloquerClic < 400) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
 }
 
 const ordreRayon = r => {

@@ -117,11 +117,12 @@ export function toast(msg, ms = 2800, action = null) {
   el.textContent = msg;
   el.classList.toggle('avec-action', !!action);
   if (action) {
-    const a = document.createElement('a');
+    // Lien (« Voir la liste ») ou bouton (« Annuler »).
+    const a = document.createElement(action.href ? 'a' : 'button');
     a.className = 'toast-action';
-    a.href = action.href;
+    if (action.href) a.href = action.href;
     a.textContent = action.texte;
-    a.addEventListener('click', () => el.classList.remove('visible'));
+    a.addEventListener('click', () => { el.classList.remove('visible'); action.faire?.(); });
     el.append(' ', a);
   }
   requestAnimationFrame(() => el.classList.add('visible'));

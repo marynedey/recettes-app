@@ -601,6 +601,42 @@ test('courses : « Voir la liste » après l\'ajout, articles ajoutés à la mai
   assert.match(copie, /- Farine : 200 g/);
   assert.ok(!/Citrons/.test(copie), 'les articles cochés ne sont pas partagés');
 
+  // Glisser un article le retire, avec « Annuler » quelques secondes.
+  const glisserArticle = async (nom, sens = 'gauche') => {
+    await article(nom).scrollIntoViewIfNeeded();
+    const zone = await article(nom).locator('.art-ligne').boundingBox();
+    const y = zone.y + zone.height / 2;
+    const [x1, x2] = sens === 'gauche' ? [330, 60] : [60, 330];
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x1, y }] });
+    for (let k = 1; k <= 6; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x1 + (x2 - x1) * k / 6, y }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(400);
+  };
+  await glisserArticle('Sucre');
+  assert.equal(await article('Sucre').count(), 0);
+  assert.match(await page.textContent('.toast'), /« Sucre » retiré de la liste/);
+  await page.click('.toast button.toast-action');
+  assert.equal(await article('Sucre').count(), 1, 'annuler le remet');
+  assert.doesNotMatch(await article('Sucre').getAttribute('class'), /fait|ouvert/, 'le glissement ne coche ni ne déplie');
+  await glisserArticle('Sucre', 'droite');
+  await page.reload();
+  await page.locator('.article').first().waitFor();
+  assert.equal(await article('Sucre').count(), 0, 'reste retiré après rechargement');
+  // Plus de personnes : il en faut davantage, il revient.
+  await page.locator('.prevue', { hasText: 'Tarte tatin' }).locator('[data-d="1"]').click();
+  assert.equal(await article('Sucre').count(), 1);
+  // Un petit mouvement ne retire rien.
+  const avant = await page.locator('.article').count();
+  await article('Beurre').scrollIntoViewIfNeeded();
+  const zone = await article('Beurre').locator('.art-ligne').boundingBox();
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y: zone.y + 20 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 260, y: zone.y + 20 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(400);
+  assert.equal(await page.locator('.article').count(), avant);
+
   // Vider : on confirme, tout part (recettes et articles à la main).
   page.once('dialog', d => d.accept());
   await page.click('#vider');

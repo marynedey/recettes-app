@@ -128,9 +128,9 @@ export const texteQuantites = a => a.quantites.map(q => formatQuantite(q.n, q.un
 /* ---------- enregistrement sur le téléphone ---------- */
 
 const CLE = 'mr.courses';
-const vide = () => ({ prevues: [], ajouts: [], articles: {} });
+const vide = () => ({ prevues: [], ajouts: [], articles: {}, masques: {} });
 
-/** { prevues: [{ slug, portions }], ajouts: [{ id, texte }], articles: { [cle]: { coche, dispo } } } */
+/** { prevues: [{ slug, portions }], ajouts: [{ id, texte }], articles: { [cle]: { coche, dispo } }, masques: { [cle]: signature } } */
 export function etat() {
   try { return { ...vide(), ...JSON.parse(localStorage.getItem(CLE)) }; } catch { return vide(); }
 }
@@ -163,4 +163,26 @@ export function retirerArticle(id) {
   const e = etat();
   e.ajouts = e.ajouts.filter(a => a.id !== id);
   enregistrer(e);
+}
+
+/* ---------- articles retirés d'un glissement ---------- */
+
+// Ce dont l'article est fait : s'il change (recette ajoutée, personnes en plus), il revient sur la liste.
+const signature = a => `${texteQuantites(a)}|${a.details.map(d => d.texte).join('|')}`;
+
+export const estMasque = (a, masques = {}) => masques[a.cle] === signature(a);
+
+/**
+ * Retire un article de la liste. Ajouté à la main : supprimé ; venant d'une recette : masqué
+ * (tant que les quantités ne changent pas). Renvoie de quoi annuler.
+ */
+export function supprimerArticle(a) {
+  const avant = etat();
+  const e = structuredClone(avant);
+  const ajouts = new Set(a.details.map(d => d.ajout).filter(Boolean));
+  if (ajouts.size === a.details.length) e.ajouts = e.ajouts.filter(x => !ajouts.has(x.id));
+  else e.masques[a.cle] = signature(a);
+  delete e.articles[a.cle];
+  enregistrer(e);
+  return () => enregistrer(avant);
 }
