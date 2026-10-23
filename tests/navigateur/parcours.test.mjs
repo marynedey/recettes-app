@@ -1784,7 +1784,16 @@ test('avec ce que j\'ai : chercher sur internet, puis importer le lien collé', 
     ['Marmiton', 'https://www.marmiton.org/recettes/recherche.aspx?aqt=chocolat%20noisettes', '_blank', 'noopener'],
     ['Google', 'https://www.google.com/search?q=recette%20chocolat%20noisettes', '_blank', 'noopener'],
   ]);
+  // Espaces verticaux égaux entre les lignes (liens, champ, bouton), aussi avec le texte agrandi.
+  const ecarts = () => page.evaluate(() => {
+    const r = s => document.querySelector(s).getBoundingClientRect();
+    return [r('#lien').top - r('#liens').bottom, r('#coller button').top - r('#lien').bottom].map(Math.round);
+  });
+  const [e1, e2] = await ecarts();
+  assert.ok(e1 === e2 && e1 > 0, `écarts ${e1} / ${e2}`);
   await sansDebordement('avec ce que j\'ai, sur internet');
+  const [g1, g2] = await ecarts();
+  assert.equal(g1, g2, 'texte agrandi : écarts toujours égaux');
 
   // Lien invalide : message ; lien collé (avec du texte autour) : l'import part tout seul.
   await page.fill('#lien', 'pas un lien');
