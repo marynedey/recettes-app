@@ -275,6 +275,34 @@ test('hors ligne : l\'app et les recettes restent consultables', async () => {
   await ctx.close();
 });
 
+/** Agrandit tout le texte (× 1,3, comme le réglage Android) et vérifie que rien ne déborde. */
+async function sansDebordement(nom) {
+  await page.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; }));
+  const depassent = await page.evaluate(() => {
+    // Comme la « taille du texte » d'Android : toutes les polices × 1,3.
+    const els = [...document.querySelectorAll('body, body *')];
+    const tailles = els.map(e => parseFloat(getComputedStyle(e).fontSize));
+    els.forEach((e, i) => { e.style.fontSize = `${tailles[i] * 1.3}px`; });
+    const largeur = document.documentElement.clientWidth;
+    // Dans les zones qui défilent horizontalement (onglets, carrousel), les panneaux
+    // hors champ sont à droite par construction : seul le panneau affiché compte.
+    const horsChamp = e => {
+      const zone = e.closest('.onglets-piste, .carrousel, .v-defile');
+      if (!zone) return false;
+      const panneau = [...zone.children].find(c => c.contains(e));
+      return panneau && panneau.getBoundingClientRect().left >= zone.getBoundingClientRect().right - 1;
+    };
+    return els.filter(e => e.getBoundingClientRect().right > largeur + 1 && !horsChamp(e))
+      .map(e => `${e.tagName.toLowerCase()}${e.className ? '.' + String(e.className).split(' ').join('.') : ''}`);
+  });
+  assert.deepEqual(depassent, [], `${nom} : éléments plus larges que l'écran`);
+  // Texte d'un bouton qui ne tient plus dedans (il passe à la ligne et déborde en hauteur).
+  const coupes = await page.evaluate(() => [...document.querySelectorAll('.bouton, button')]
+    .filter(b => b.offsetParent && b.scrollHeight > b.clientHeight + 2)
+    .map(b => b.textContent.trim().slice(0, 30)));
+  assert.deepEqual(coupes, [], `${nom} : texte qui déborde d'un bouton`);
+}
+
 test('aucun écran ne déborde en largeur, même avec le texte agrandi (réglage Android)', async () => {
   depotInitial();
   await nouvellePage();
@@ -285,30 +313,7 @@ test('aucun écran ne déborde en largeur, même avec le texte agrandi (réglage
     await page.goto(BASE + ecran);
     await page.reload(); // repart de tailles de police normales
     await page.waitForTimeout(400);
-    await page.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; }));
-    const depassent = await page.evaluate(() => {
-      // Comme la « taille du texte » d'Android : toutes les polices × 1,3.
-      const els = [...document.querySelectorAll('body, body *')];
-      const tailles = els.map(e => parseFloat(getComputedStyle(e).fontSize));
-      els.forEach((e, i) => { e.style.fontSize = `${tailles[i] * 1.3}px`; });
-      const largeur = document.documentElement.clientWidth;
-      // Dans les zones qui défilent horizontalement (onglets, carrousel), les panneaux
-      // hors champ sont à droite par construction : seul le panneau affiché compte.
-      const horsChamp = e => {
-        const zone = e.closest('.onglets-piste, .carrousel, .v-defile');
-        if (!zone) return false;
-        const panneau = [...zone.children].find(c => c.contains(e));
-        return panneau && panneau.getBoundingClientRect().left >= zone.getBoundingClientRect().right - 1;
-      };
-      return els.filter(e => e.getBoundingClientRect().right > largeur + 1 && !horsChamp(e))
-        .map(e => `${e.tagName.toLowerCase()}${e.className ? '.' + String(e.className).split(' ').join('.') : ''}`);
-    });
-    assert.deepEqual(depassent, [], `${ecran} : éléments plus larges que l'écran`);
-    // Texte d'un bouton qui ne tient plus dedans (il passe à la ligne et déborde en hauteur).
-    const coupes = await page.evaluate(() => [...document.querySelectorAll('.bouton, button')]
-      .filter(b => b.offsetParent && b.scrollHeight > b.clientHeight + 2)
-      .map(b => b.textContent.trim().slice(0, 30)));
-    assert.deepEqual(coupes, [], `${ecran} : texte qui déborde d'un bouton`);
+    await sansDebordement(ecran);
   }
   assert.deepEqual(erreurs, []);
   await ctx.close();
@@ -1441,6 +1446,139 @@ for (const sombre of [true, false]) test(`mode ${sombre ? 'sombre' : 'clair'} : 
     });
     assert.deepEqual(faibles, [], `${ecran} : texte trop peu contrasté`);
   }
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('moule : saisi dans « Modifier », quantités adaptées à mon moule sur la fiche et en mode cuisine', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/modifier/tarte-tatin');
+  await page.locator('#form').waitFor();
+  // Moule sans taille : refusé, rien n'est écrit.
+  await page.fill('[name=moule]', 'grand moule');
+  await page.click('#enreg');
+  assert.match(await page.textContent('.toast'), /Moule : indiquer la taille/);
+  assert.equal(ecritures.length, 0);
+  await page.fill('[name=moule]', 'rond 24');
+  await page.click('#enreg');
+  await page.waitForURL(/#\/recette\/tarte-tatin$/);
+  assert.match(ecritures.at(-1).contenu, /\nportions: 6\nmoule: rond 24 cm\n/);
+
+  // Sur la fiche : « Personnes » ou « Taille du moule ».
+  await page.locator('.fiche-feuille h1').waitFor();
+  const qte = () => page.locator('[data-o=ingredients] .qte').first().textContent();
+  assert.equal(await qte(), '200 g');
+  await page.click('[data-mode=moule]');
+  assert.match(await page.textContent('.moule-carte'), /Recette prévue pour\s*rond 24 cm/);
+  for (let k = 0; k < 4; k++) await page.click('[data-taille=taille-a][data-d="1"]');
+  assert.equal(await page.textContent('#taille-a'), '28 cm');
+  assert.match(await page.textContent('#facteur-moule'), /Quantités × 1,36/);
+  assert.equal(await qte(), '270 g');
+  assert.match(await page.getAttribute('#cuisiner', 'href'), /\?p=6&f=1\.361$/);
+  // Carré de 24 cm : plus grand qu'un rond de 24 (× 1,27).
+  await page.click('[data-forme=carré]');
+  await page.click('[data-taille=taille-a][data-d="-1"]');
+  await page.click('[data-taille=taille-a][data-d="-1"]');
+  await page.click('[data-taille=taille-a][data-d="-1"]');
+  await page.click('[data-taille=taille-a][data-d="-1"]');
+  assert.match(await page.textContent('#facteur-moule'), /× 1,27/);
+  // Rectangle : longueur et largeur.
+  await page.click('[data-forme=rectangle]');
+  await page.click('[data-taille=taille-b][data-d="-1"]');
+  assert.equal(await page.textContent('#taille-b'), '23 cm');
+  await sansDebordement('fiche, moule rectangle');
+  await page.reload();
+  await page.locator('.moule-carte').waitFor();
+  assert.equal(await page.textContent('#taille-b'), '23 cm', 'mon moule est retenu');
+
+  // Le mode cuisine reprend les quantités du moule.
+  await page.click('[data-forme=rond]');
+  for (let k = 0; k < 4; k++) await page.click('[data-taille=taille-a][data-d="1"]');
+  assert.equal(await page.textContent('#taille-a'), '28 cm');
+  await page.click('#cuisiner');
+  await page.locator('.etape-label').waitFor();
+  const puces = await page.locator('.puces-ing').textContent().catch(() => '');
+  if (puces) assert.doesNotMatch(puces, /200 g farine/);
+  assert.match(page.url(), /f=1\.361/);
+
+  // Retour à « Personnes » : quantités d'origine.
+  await page.goBack();
+  await page.locator('[data-mode=personnes]').waitFor();
+  await page.click('[data-mode=personnes]');
+  assert.equal(await qte(), '200 g');
+  assert.equal(await page.locator('.moule-carte').count(), 0);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('carnet : ajouter une note (avis, moule, four), la retrouver, la supprimer ; « Noter dans le carnet » après « Terminé »', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/recette/cinnamon-rolls');
+  await page.click('[role=tab][data-o=notes]');
+  await page.waitForTimeout(500);
+  assert.match(await page.textContent('#carnet'), /Mon carnet/);
+  assert.equal(await page.locator('.carnet-note').count(), 0);
+
+  await page.click('#carnet-ajouter');
+  // Note vide : refusée.
+  await page.click('#carnet-form [type=submit]');
+  assert.match(await page.textContent('.toast'), /La note est vide/);
+  assert.equal(ecritures.length, 0);
+  await page.fill('#carnet-form [name=date]', '2026-10-12');
+  await page.click('[data-avis=Réussi]');
+  assert.equal(await page.getAttribute('[data-avis=Réussi]', 'aria-pressed'), 'true');
+  await page.fill('#carnet-form [name=moule]', 'rectangle 30 x 20 cm');
+  await page.fill('#carnet-form [name=four]', '170');
+  await page.fill('#carnet-form [name=texte]', 'Pousse 1 h 30 près du radiateur : parfait.');
+  await sansDebordement('carnet, formulaire');
+  await page.click('#carnet-form [type=submit]');
+  await page.locator('.carnet-note').waitFor();
+  const md = ecritures.at(-1);
+  assert.equal(md.chemin, 'recettes/cinnamon-rolls.md');
+  assert.match(md.contenu, /\n## Carnet\n\n- 2026-10-12 · Réussi · moule rectangle 30 x 20 cm · four 170 °C · \d+ pers\. : Pousse 1 h 30 près du radiateur : parfait\.\n$/);
+  assert.match(await page.textContent('.carnet-stats'), /Cuisinée 1 fois · dernière fois le 12 octobre 2026/);
+  assert.match(await page.textContent('.carnet-note'), /Réussi[\s\S]*Moule rectangle 30 x 20 cm · Four 170 °C[\s\S]*Pousse 1 h 30/);
+
+  // Une deuxième, plus ancienne : elle passe après.
+  await page.click('#carnet-ajouter');
+  await page.fill('#carnet-form [name=date]', '2026-09-28');
+  await page.click('[data-avis="À ajuster"]');
+  await page.fill('#carnet-form [name=texte]', 'Glaçage trop liquide.');
+  await page.click('#carnet-form [type=submit]');
+  await page.locator('.carnet-note >> nth=1').waitFor();
+  assert.match(await page.locator('.carnet-note').nth(1).textContent(), /À ajuster[\s\S]*Glaçage/);
+  assert.match(await page.textContent('.carnet-stats'), /Cuisinée 2 fois · dernière fois le 12 octobre/);
+
+  // Relu depuis le dépôt (nouvelle synchronisation) : le carnet est toujours là.
+  await page.evaluate(() => { localStorage.removeItem('mr.recettes'); });
+  await page.goto(BASE + '#/');
+  await page.reload();
+  await page.locator('.carte').first().waitFor();
+  await page.goto(BASE + '#/recette/cinnamon-rolls');
+  await page.locator('.fiche-feuille h1').waitFor();
+  await page.click('[role=tab][data-o=notes]');
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('.carnet-note').count(), 2);
+
+  // Supprimer la première (après confirmation).
+  page.once('dialog', d => d.accept());
+  await page.locator('.carnet-suppr').first().click();
+  await page.waitForFunction(() => document.querySelectorAll('.carnet-note').length === 1);
+  assert.doesNotMatch(ecritures.at(-1).contenu, /Réussi/);
+  assert.match(ecritures.at(-1).contenu, /- 2026-09-28 · À ajuster/);
+
+  // Fin du mode cuisine : « Noter dans le carnet » ouvre le formulaire.
+  await page.goto(BASE + '#/cuisine/cinnamon-rolls?e=99');
+  await page.locator('.etape-label').waitFor();
+  await page.click('#suiv');
+  await page.locator('.toast .toast-action').waitFor();
+  assert.match(await page.textContent('.toast'), /Bon appétit/);
+  await page.click('.toast-action');
+  await page.waitForURL(/#\/recette\/cinnamon-rolls$/);
+  await page.locator('#carnet-form').waitFor();
+  assert.equal(await ongletActif(), 'Notes');
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

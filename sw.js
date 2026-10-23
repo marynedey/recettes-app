@@ -1,6 +1,6 @@
 // Service worker : met l'application en cache pour un usage hors ligne.
 // Les recettes et photos sont gérées par l'app elle-même (localStorage + Cache API).
-const VERSION = 'mr-app-1.15.0'; // = version de l'app (js/views/reglages.js)
+const VERSION = 'mr-app-1.16.0'; // = version de l'app (js/views/reglages.js)
 const FICHIERS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/courses.js', 'js/format.js', 'js/github.js', 'js/minuteurs.js', 'js/push.js', 'js/store.js', 'js/ui.js',

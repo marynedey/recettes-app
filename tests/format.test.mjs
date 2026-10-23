@@ -100,3 +100,33 @@ test('photos : nouvelle liste et ancien champ « photo »', () => {
   const r = parseRecipe('---\ntitre: T\nphotos: [photos/t.jpg, photos/t-2.jpg]\n---\n## Ingrédients\n- 1 oeuf\n', 'recettes/t.md');
   assert.match(serializeRecipe(r), /\nphotos: \[photos\/t\.jpg, photos\/t-2\.jpg\]\n/);
 });
+
+test('carnet : lu et réécrit à l\'identique, la plus récente en premier', async () => {
+  const { parseRecipe, serializeRecipe, lireNoteCarnet, ecrireNoteCarnet } = await import('../js/format.js');
+  const md = '---\ntitre: Cake\nportions: 8\nmoule: rectangle 26 x 10 cm\n---\n\n## Ingrédients\n- 200 g farine\n\n## Étapes\n1. Cuire.\n\n## Notes\n\nMeilleur le lendemain.\n\n## Carnet\n\n- 2026-10-12 · Réussi · moule rond 28 cm · four 170 °C · 12 pers. : Pousse 1 h 30 près du radiateur.\n- 2026-09-28 · À ajuster : Glaçage trop liquide.\n- 2026-09-02\n';
+  const r = parseRecipe(md, 'recettes/cake.md');
+  assert.equal(r.notes, 'Meilleur le lendemain.', 'le carnet ne se mélange pas aux notes');
+  assert.equal(r.carnet.length, 3);
+  assert.deepEqual(r.carnet[0], { date: '2026-10-12', avis: 'Réussi', moule: 'rond 28 cm', four: '170 °C', personnes: 12, texte: 'Pousse 1 h 30 près du radiateur.' });
+  assert.deepEqual(r.carnet[2], { date: '2026-09-02', avis: '', moule: '', four: '', personnes: '', texte: '' });
+  assert.equal(serializeRecipe(r), md, 'réécrit à l\'identique');
+  assert.equal(r.meta.moule, 'rectangle 26 x 10 cm');
+  // Le texte peut contenir « · » et « : » sans casser la ligne.
+  const n = { date: '2026-10-23', avis: 'Raté', moule: '', four: '', personnes: 4, texte: 'Trop cuit : 10 min de moins · four trop chaud' };
+  assert.deepEqual(lireNoteCarnet(ecrireNoteCarnet(n)), n);
+  assert.equal(lireNoteCarnet('- pas une date'), null);
+});
+
+test('moule : formes, surfaces et facteur des quantités', async () => {
+  const { lireMoule, facteurMoule, texteMoule } = await import('../js/format.js');
+  assert.deepEqual(lireMoule('rond 24 cm'), { forme: 'rond', a: 24, b: 24 });
+  assert.deepEqual(lireMoule('Ø 24'), { forme: 'rond', a: 24, b: 24 });
+  assert.deepEqual(lireMoule('carré 20 cm'), { forme: 'carré', a: 20, b: 20 });
+  assert.deepEqual(lireMoule('rectangle 30 x 20 cm'), { forme: 'rectangle', a: 30, b: 20 });
+  assert.deepEqual(lireMoule('rectangle 22,5x11'), { forme: 'rectangle', a: 22.5, b: 11 });
+  assert.equal(lireMoule('grand'), null);
+  assert.equal(facteurMoule(lireMoule('rond 24'), lireMoule('rond 28')).toFixed(2), '1.36');
+  assert.equal(facteurMoule(lireMoule('rond 24'), lireMoule('rond 24')), 1);
+  assert.equal(facteurMoule(lireMoule('carré 20'), lireMoule('rectangle 30 x 20')), 1.5);
+  assert.equal(texteMoule(lireMoule('rectangle 22,5 x 11')), 'rectangle 22,5 x 11 cm');
+});

@@ -255,6 +255,41 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .stepper button { width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--accent); color: var(--accent-texte); display: grid; place-items: center; }
 .stepper button svg.i { width: 18px; height: 18px; stroke-width: 2.5; }
 
+/* Adapter à mon moule (fiche, onglet Ingrédients) */
+.segments.deux { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 14px 0 4px; }
+.segments button[aria-pressed="true"] { background: var(--carte); color: var(--encre); box-shadow: 0 1px 3px rgba(43, 33, 24, .08); font-weight: 600; }
+.segments.deux button { height: auto; min-height: 42px; padding: 4px 6px; }
+.moule-carte { background: var(--carte); border: 1px solid var(--bordure); border-radius: 18px; padding: 14px 16px; margin: 12px 0 6px; display: flex; flex-direction: column; gap: 12px; }
+.moule-ligne { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.moule-ligne > span:not(.aide) { font-weight: 600; }
+.moule-ligne .stepper b { min-width: 64px; }
+.moule-formes, .avis-choix { display: flex; gap: 8px; flex-wrap: wrap; }
+.moule-formes button, .avis-choix button { flex: 1; min-height: 40px; padding: 4px 10px; border-radius: 10px; border: 1px solid var(--bordure); background: var(--carte); font-weight: 500; font-size: 14px; }
+.moule-formes button[aria-pressed="true"], .avis-choix button[aria-pressed="true"] { background: var(--encre); border-color: var(--encre); color: var(--carte); }
+.moule-facteur { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--pastel); color: var(--brun); font-size: 14px; }
+
+/* Mon carnet (fiche, onglet Notes) */
+.carnet { margin-top: 24px; }
+.carnet-tete { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.carnet-tete h2 { font-family: var(--serif); font-size: 20px; font-weight: 600; margin: 0; }
+.carnet-tete .lien { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; min-height: 40px; }
+.carnet-tete .lien svg.i { width: 16px; height: 16px; }
+.carnet-stats { margin: 2px 0 10px; }
+.carnet-liste { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.carnet-note { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.carnet-note p { margin: 0; line-height: 1.45; overflow-wrap: anywhere; }
+.carnet-ligne { display: flex; align-items: center; gap: 8px; }
+.carnet-ligne .aide { flex: 1; min-width: 0; }
+.carnet-details { font-size: 14px; color: var(--gris); }
+.avis { padding: 3px 9px; border-radius: 999px; background: var(--pastel); color: var(--brun); font-size: 13px; font-weight: 600; }
+.avis.ok { background: var(--ok-fond); color: var(--ok-texte); }
+.avis.rate { background: var(--alerte-fond); color: var(--alerte-texte); }
+.carnet-suppr { width: 32px; height: 32px; display: grid; place-items: center; color: var(--gris); flex: none; }
+.carnet-suppr svg.i { width: 16px; height: 16px; }
+.carnet-form { padding: 14px; margin-top: 10px; }
+.carnet-form .champ textarea { min-height: 80px; }
+.carnet-form .actions-fiche { margin-top: 4px; }
+
 .groupe-titre { font-family: var(--serif); font-size: 17px; font-weight: 600; margin: 18px 0 2px; }
 .ingredient { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--bordure); cursor: pointer; }
 .ingredient input { position: absolute; opacity: 0; pointer-events: none; }

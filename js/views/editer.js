@@ -1,7 +1,7 @@
 // Ajout (import par lien ou saisie manuelle) et modification d'une recette.
 
 import * as store from '../store.js';
-import { CATEGORIES, emptyRecipe, groupsToText, textToGroups, parseIngredient, nonRecalcule, listePhotos } from '../format.js';
+import { CATEGORIES, emptyRecipe, groupsToText, textToGroups, parseIngredient, nonRecalcule, listePhotos, lireMoule, texteMoule } from '../format.js';
 import { esc, icon, retour, toast, ongletsGlissants } from '../ui.js';
 
 function formulaire(root, r, { titrePage, onAnnuler }) {
@@ -30,6 +30,8 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
         <label class="champ"><span>Cuisson (min)</span><input name="cuisson" type="number" inputmode="numeric" min="0" value="${esc(m.cuisson)}"></label>
         <label class="champ"><span>Repos (min)</span><input name="repos" type="number" inputmode="numeric" min="0" value="${esc(m.repos)}"><small>Pousse, frigo, marinade…</small></label>
       </div>
+      <label class="champ"><span>Moule (facultatif)</span><input name="moule" value="${esc(m.moule || '')}" placeholder="rond 24 cm, carré 20 cm, rectangle 30 x 20 cm">
+        <small>Pour adapter les quantités à un autre moule depuis la fiche.</small></label>
       <label class="champ"><span>Ingrédients</span>
         <textarea name="ingredients" rows="8" placeholder="200 g farine&#10;6 pommes Golden&#10;1 pincée fleur de sel">${esc(groupsToText(r.ingredients))}</textarea>
         <small>Un ingrédient par ligne, quantité en premier (« 200 g farine »). Pour des sous-parties, écrire une ligne « ### Pour la pâte ».</small></label>
@@ -167,6 +169,9 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
     const d = new FormData(form);
     const titre = d.get('titre').trim();
     if (!titre) { form.titre.focus(); toast('Le titre est obligatoire.'); return; }
+    const mouleSaisi = d.get('moule').trim();
+    const moule = mouleSaisi ? lireMoule(mouleSaisi) : null;
+    if (mouleSaisi && !moule) { form.moule.focus(); toast('Moule : indiquer la taille, par ex. « rond 24 cm ».'); return; }
     const num = k => { const v = parseInt(d.get(k), 10); return Number.isFinite(v) && v >= 0 ? v : ''; };
     Object.assign(r.meta, {
       titre,
@@ -178,6 +183,7 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
       repos: num('repos'),
       source: d.get('source').trim(),
     });
+    if (moule) r.meta.moule = texteMoule(moule); else delete r.meta.moule;
     delete r.meta.difficulte; // plus de niveau : rien n'est difficile en cuisine
     r.ingredients = textToGroups(d.get('ingredients')).map(g => ({ group: g.group, items: g.items.map(parseIngredient) }));
     r.etapes = textToGroups(d.get('etapes'));
