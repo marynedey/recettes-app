@@ -189,7 +189,7 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
     r.etapes = textToGroups(d.get('etapes'));
     r.notes = d.get('notes').trim();
     const btn = form.querySelector('#enreg');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Enregistrement…';
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Enregistrer'; // même largeur qu'avant : le rond remplace la coche
     try {
       const slug = await store.enregistrerRecette(r, photosModifiees ? photos : undefined);
       toast('Recette enregistrée');
