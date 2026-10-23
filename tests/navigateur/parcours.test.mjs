@@ -531,20 +531,24 @@ test('onglets Recettes et Favoris', async () => {
   depotInitial();
   await nouvellePage();
   await page.click('.tabbar a[href="#/recettes"]');
+  await page.locator('.lettre').nth(2).waitFor();
   assert.deepEqual(await page.locator('.lettre').allTextContents(), ['C', 'R', 'T']);
   await page.fill('input[type=search]', 'pommes');
   assert.deepEqual(await page.locator('.ligne-recette h3').allTextContents(), ['Tarte tatin']);
 
   await page.click('.tabbar a[href="#/favoris"]');
+  await page.locator('.vide').waitFor();
   assert.match(await page.textContent('.vide'), /Pas encore de favoris/);
   await page.goto(BASE + '#/recette/risotto-aux-champignons');
   await page.click('#fav');
   assert.equal(await page.getAttribute('#fav', 'aria-pressed'), 'true');
   await page.goto(BASE + '#/favoris');
+  await page.locator('.carte').waitFor();
   assert.deepEqual(await page.locator('.carte h3').allTextContents(), ['Risotto aux champignons']);
   await page.click('.carte');
   await page.click('#fav');
   await page.goto(BASE + '#/favoris');
+  await page.locator('.vide').waitFor();
   assert.equal(await page.locator('.carte').count(), 0, 'retirée des favoris');
   assert.deepEqual(erreurs, []);
   await ctx.close();
