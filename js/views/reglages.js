@@ -5,7 +5,7 @@ import { GitHub } from '../github.js';
 import * as push from '../push.js';
 import { esc, icon, retour, toast } from '../ui.js';
 
-export const VERSION = '1.20.0';
+export const VERSION = '1.21.0';
 
 const THEMES = [['auto', 'Automatique'], ['clair', 'Clair'], ['sombre', 'Sombre']];
 

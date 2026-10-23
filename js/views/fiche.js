@@ -108,9 +108,10 @@ export function fiche(root, { params, query }) {
   };
   const enMoule = () => !!mouleRecette && etat.mode === 'moule';
   const facteur = () => (enMoule() ? facteurMoule(mouleRecette, etat.monMoule) : base ? etat.portions / base : 1);
-  // Aux courses avec le moule : autant de personnes que de quantités (arrondi).
-  root.querySelector('#aux-courses')?.addEventListener('click', () =>
-    ajouterAuxCourses(r, enMoule() && base ? Math.max(1, Math.round(base * facteur())) : etat.portions));
+  // Aux courses avec le moule : quantités exactes du moule (équivalent en personnes non arrondi) et son nom.
+  root.querySelector('#aux-courses')?.addEventListener('click', () => (enMoule() && base
+    ? ajouterAuxCourses(r, Math.round(base * facteur() * 100) / 100, texteMoule(etat.monMoule))
+    : ajouterAuxCourses(r, etat.portions)));
   const btnCuisine = root.querySelector('#cuisiner');
   btnCuisine?.addEventListener('click', () => sessionStorage.removeItem('mr.apresCuisine'));
   const majLien = () => {
@@ -150,7 +151,7 @@ export function fiche(root, { params, query }) {
             `<button data-forme="${f}" aria-pressed="${mien.forme === f}">${f[0].toUpperCase() + f.slice(1)}</button>`).join('')}</div>
           <div class="moule-ligne"><span>${mien.forme === 'rond' ? 'Diamètre' : mien.forme === 'carré' ? 'Côté' : 'Longueur'}</span>${taille('taille-a', mien.a, 'Moule')}</div>
           ${mien.forme === 'rectangle' ? `<div class="moule-ligne"><span>Largeur</span>${taille('taille-b', mien.b, 'Largeur')}</div>` : ''}
-          <p class="moule-facteur" id="facteur-moule">Quantités × ${fois(facteur())} (surface du moule)</p>
+          <p class="moule-facteur" id="facteur-moule">Quantités × ${fois(facteur())} (surface du moule)${base ? `, soit ≈ ${Math.max(1, Math.round(base * facteur()))} personne${Math.round(base * facteur()) > 1 ? 's' : ''}` : ''}</p>
         </div>` : '';
       contenu.innerHTML = `${mouleRecette ? `<div class="segments deux" role="group" aria-label="Adapter les quantités">
           <button data-mode="personnes" aria-pressed="${!enMoule()}">Personnes</button>
@@ -301,4 +302,7 @@ export function fiche(root, { params, query }) {
   Object.keys(panneaux).forEach(o => vues[o]());
   majLien();
   ongletsGlissants(root, piste, { depart: etat.onglet, surChangement: o => { if (etat.onglet !== o) { etat.onglet = o; sauver(); } } });
+  // « Noter dans le carnet » : on arrive sur le formulaire, pas en haut de la recette
+  // (après le retour en haut que fait le routeur à chaque nouvel écran).
+  if (ouvrirCarnet) setTimeout(() => panneaux.notes.querySelector('#carnet')?.scrollIntoView({ block: 'start' }), 0);
 }

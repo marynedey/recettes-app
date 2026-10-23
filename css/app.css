@@ -42,6 +42,7 @@
   --tabbar: 68px;
   --haut: env(safe-area-inset-top, 0px);
   --bas: env(safe-area-inset-bottom, 0px);
+  --toast-action: #F7A12B;  /* lien d'une pastille (fond --encre) */
   color-scheme: light;
 }
 
@@ -68,6 +69,7 @@
   --sonne: #4A2E1A;
   --voile: rgba(39, 32, 26, .92);
   --fond-0: rgba(28, 23, 18, 0);
+  --toast-action: #B03F09;
   color-scheme: dark;
 }
 
@@ -521,6 +523,8 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .barre-bas .bouton.bouton-courses { flex: 0 0 56px; padding: 0; box-shadow: none; }
 .prevues { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .prevue { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--carte); border: 1px solid var(--bordure); border-radius: 14px; }
+.pv-titre-bloc { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pv-moule { color: var(--gris); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pv-titre { flex: 1; min-width: 0; color: var(--encre); font-weight: 600; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pv-unite { color: var(--gris); font-size: 13px; width: 30px; }
 .pv-retirer { width: 32px; height: 32px; display: grid; place-items: center; color: var(--gris); }
@@ -576,12 +580,13 @@ body.sans-defilement { overflow: hidden; }
 .toast {
   position: fixed; z-index: 50; left: 50%; bottom: calc(var(--tabbar) + var(--bas) + 90px); transform: translate(-50%, 20px);
   background: var(--encre); color: var(--carte); padding: 12px 18px; border-radius: 14px; font-size: 15px;
-  max-width: calc(100% - 40px); opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
+  width: max-content; max-width: calc(100% - 40px); opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
 }
 .toast.visible { opacity: 1; transform: translate(-50%, 0); }
 .toast.avec-action.visible { pointer-events: auto; } 
-.toast.avec-action { display: flex; align-items: center; gap: 14px; }
-.toast-action { color: var(--minuteur); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.toast.avec-action { display: flex; align-items: center; flex-wrap: wrap; column-gap: 14px; row-gap: 4px; }
+.toast-texte { min-width: 0; }
+.toast-action { color: var(--toast-action); font-weight: 600; text-decoration: none; white-space: nowrap; }
 
 @media (min-width: 600px) {
   .grille { grid-template-columns: repeat(3, minmax(0, 1fr)); }
