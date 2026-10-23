@@ -112,11 +112,8 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .visuel { position: relative; overflow: hidden; background: linear-gradient(160deg, var(--c1), var(--c2)); }
 .visuel img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s; }
 .visuel img.ok { opacity: 1; }
-.visuel .rond { position: absolute; border-radius: 50%; }
-.visuel .r1 { width: 46%; aspect-ratio: 1; left: 12%; top: 10%; background: var(--c3); }
-.visuel .r2 { width: 52%; aspect-ratio: 1; left: 26%; top: 22%; background: rgba(255, 255, 255, .28); }
-.visuel .r3 { width: 40%; aspect-ratio: 1; left: 52%; top: 38%; background: var(--c4); }
-.visuel .assiette { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: rgba(255, 255, 255, .85); }
+.visuel .rond { position: absolute; left: 50%; top: 50%; width: min(46%, 120px); aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, .2); }
+.visuel .assiette { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #fff; }
 .visuel .assiette svg.i { width: 34px; height: 34px; stroke-width: 1.8; }
 .visuel.a-photo .rond, .visuel.a-photo .assiette { display: none; }
 .carrousel { position: absolute; inset: 0; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
@@ -466,3 +463,21 @@ button.toast-action { background: none; border: 0; padding: 0; font: inherit; }
 .vignette-photo { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .vignette-photo.deplacee { z-index: 2; opacity: .9; box-shadow: 0 10px 24px rgba(43, 33, 24, .3); transition: none; }
 .vignette-photo.cible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.minuteur-btns .lecture svg.i.trait { fill: none; stroke: currentColor; }
+/* Minuteur terminé : bandeau en haut de tous les écrans, tant que ça sonne. */
+.alarme {
+  position: fixed; z-index: 60; left: 12px; right: 12px; top: calc(var(--haut) + 10px); max-width: 520px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.alarme-ligne {
+  background: var(--encre); color: var(--carte); border-radius: 18px; padding: 14px 16px;
+  box-shadow: 0 12px 30px rgba(43, 33, 24, .35); display: flex; flex-direction: column; gap: 10px;
+  animation: alarme 1s ease-in-out infinite alternate;
+}
+@keyframes alarme { to { box-shadow: 0 12px 30px rgba(201, 72, 10, .6); } }
+.alarme-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.alarme-txt strong { font-size: 17px; }
+.alarme-txt span { font-size: 14px; opacity: .85; overflow-wrap: anywhere; }
+.alarme-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.alarme-btns .bouton.secondaire { background: transparent; color: var(--carte); border-color: rgba(255, 251, 244, .4); }
+.alarme-btns svg.i { fill: currentColor; stroke: none; }
