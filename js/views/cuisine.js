@@ -3,6 +3,7 @@
 import * as store from '../store.js';
 import { flatSteps, ingredientsForStep, formatQty, detectTimers } from '../format.js';
 import { esc, icon, texteEtape, toast } from '../ui.js';
+import { ecouter, reconnaissancePossible } from '../voix.js';
 import * as M from '../minuteurs.js';
 
 const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -53,10 +54,17 @@ export function cuisine(root, { params, query }) {
       <div class="cuisine-boutons">
         <button class="btn-rond" id="fermer" aria-label="Quitter le mode cuisine">${icon('x')}</button>
         <button class="btn-rond" id="recommencer" aria-label="Recommencer la recette">${icon('reset')}</button>
+        ${reconnaissancePossible() ? `<button class="btn-rond" id="mains-libres" aria-label="Mains libres (commandes vocales)" aria-pressed="false">${icon('mic')}</button>` : ''}
       </div>
       <span class="badge-veille off" id="veille">${icon('sun')}<span>Écran normal</span></span>
     </div>
     <div class="progression"><div id="barre"></div></div>
+    <div class="voix" id="voix" hidden>
+      <div class="voix-tete"><span class="ecoute">${icon('mic')}J'écoute</span>
+        <label class="voix-lire"><input type="checkbox" id="voix-lire"> Lire les étapes</label></div>
+      <div class="voix-aide">Dites « Recette, » puis : ${['suivante', 'précédente', 'lance le minuteur', 'relis', 'ingrédients']
+        .map(c => `<span>${c}</span>`).join('')}</div>
+    </div>
     <div class="cuisine-corps" id="corps" aria-live="polite"></div>
     <div class="cuisine-nav">
       <button class="bouton secondaire" id="prec">Précédente</button>
@@ -155,7 +163,60 @@ export function cuisine(root, { params, query }) {
       corps.querySelector('#m-reset').onclick = () => M.supprimer(id);
     }
     tic();
+    lireSiNouvelle();
   }
+
+  // Mains libres : désactivé par défaut, une commande ne compte que précédée de « Recette » (voix.js).
+  let voix = null;
+  let dernierLu = -1;
+  const boutonVoix = root.querySelector('#mains-libres');
+  const panneauVoix = root.querySelector('#voix');
+  const caseLire = root.querySelector('#voix-lire');
+  try { caseLire.checked = localStorage.getItem('mr.voix.lire') !== 'non'; } catch { caseLire.checked = true; }
+  caseLire.addEventListener('change', () => {
+    try { localStorage.setItem('mr.voix.lire', caseLire.checked ? 'oui' : 'non'); } catch { /* pas de stockage */ }
+    if (!caseLire.checked) window.speechSynthesis?.cancel();
+  });
+  const lireEtape = () => { dernierLu = i; voix?.parler(steps[i].texte); };
+  function lireSiNouvelle() { if (voix && caseLire.checked && dernierLu !== i) lireEtape(); }
+  const minuteurIci = () => (courant?.id ? M.obtenir(courant.id) : null);
+  const COMMANDES = {
+    suivante: () => aller(1),
+    precedente: () => { if (i > 0) aller(-1); },
+    minuteur: () => {
+      const m = minuteurIci();
+      if (!courant?.id) voix.parler('Pas de minuteur à cette étape.');
+      else if (!M.enCours(m) && !m?.sonne) corps.querySelector('#m-lecture')?.click();
+    },
+    pause: () => { if (M.enCours(minuteurIci())) corps.querySelector('#m-lecture')?.click(); },
+    stop: () => {
+      const sonnent = M.quiSonnent();
+      if (sonnent.length) sonnent.forEach(m => M.arreter(m.id));
+      else COMMANDES.pause();
+    },
+    relis: lireEtape,
+    ingredients: () => {
+      const ings = ingredientsForStep(r, steps[i]);
+      voix.parler(ings.length ? ings.map(g => (g.qty != null ? `${formatQty(g, facteur)} ${g.name}` : g.raw)).join(', ')
+        : 'Pas d\'ingrédient pour cette étape.');
+    },
+  };
+  const NOMS = { suivante: 'Suivante', precedente: 'Précédente', minuteur: 'Minuteur', pause: 'Pause', stop: 'Arrêter', relis: 'Je relis', ingredients: 'Ingrédients' };
+  const basculerVoix = on => {
+    if (!on) { voix?.arreter(); voix = null; }
+    else {
+      voix = ecouter({
+        surCommande: nom => { toast(`« ${NOMS[nom]} »`, 1500); COMMANDES[nom](); },
+        surErreur: msg => { basculerVoix(false); toast(msg, 5000); },
+      });
+      dernierLu = -1;
+      lireSiNouvelle();
+    }
+    boutonVoix.setAttribute('aria-pressed', String(on));
+    boutonVoix.classList.toggle('actif', on);
+    panneauVoix.hidden = !on;
+  };
+  boutonVoix?.addEventListener('click', () => basculerVoix(!voix));
 
   function libelle(s, t) {
     const m = s.texte.match(/(cuisson|cuire|four|repos|reposer|lev[ée]e|pétrir|mijoter|frémir|feu \w+)/i);
@@ -285,6 +346,7 @@ export function cuisine(root, { params, query }) {
     document.removeEventListener('keydown', clavier);
     window.removeEventListener('popstate', surRetour);
     window.removeEventListener('mr:etape', surEtape);
+    voix?.arreter();
     verrou?.release().catch(() => {});
     verrou = null;
   };
