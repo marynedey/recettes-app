@@ -13,7 +13,7 @@ App de recettes perso, pensée mobile (Android), en français. Maquette validée
 
 | Fichier | Rôle |
 |---|---|
-| `index.html`, `manifest.webmanifest` | coquille, manifest PWA (+ `share_target` Android) |
+| `index.html`, `manifest.webmanifest` | coquille, manifest PWA (+ `share_target` Android ; raccourcis « Liste de courses » et « Ajouter une recette » à l'appui long sur l'icône, icônes `icons/raccourci-*.png` ; pas de vrai widget possible pour une appli web) |
 | `sw.js` | service worker : cache de l'app (cache d'abord, mise à jour en arrière-plan, rechargement automatique quand une nouvelle version s'installe). Compléter `FICHIERS` quand on ajoute/renomme un fichier. |
 | `js/format.js` | front matter, Markdown ↔ objet recette, quantités (recalcul portions), minuteurs, ingrédients d'une étape. Sans dépendance navigateur, testé avec `node --test`. |
 | `js/github.js` | appels API GitHub (arbre, blobs, contents PUT/DELETE) |

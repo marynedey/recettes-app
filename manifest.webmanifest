@@ -23,6 +23,7 @@
     "params": { "title": "title", "text": "text", "url": "url" }
   },
   "shortcuts": [
-    { "name": "Ajouter une recette", "url": "./#/ajouter", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Liste de courses", "short_name": "Courses", "url": "./#/courses", "icons": [{ "src": "icons/raccourci-courses.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" }] },
+    { "name": "Ajouter une recette", "short_name": "Ajouter", "url": "./#/ajouter", "icons": [{ "src": "icons/raccourci-ajouter.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" }] }
   ]
 }
