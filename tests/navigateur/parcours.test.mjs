@@ -1582,3 +1582,109 @@ test('carnet : ajouter une note (avis, moule, four), la retrouver, la supprimer 
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
+
+// Faux micro et fausse voix : `__dire(texte)` simule une phrase reconnue, `__voix.dits` garde ce qui est lu.
+const fauxMicro = ctx => ctx.addInitScript(() => {
+  window.__voix = { dits: [], reco: null, demarrages: 0 };
+  window.SpeechRecognition = class {
+    constructor() { window.__voix.reco = this; this.actif = false; }
+    start() { window.__voix.demarrages++; this.actif = true; }
+    abort() { this.actif = false; }
+    stop() { this.actif = false; }
+  };
+  window.__dire = t => window.__voix.reco.onresult({ results: [Object.assign([{ transcript: t }], { isFinal: true })] });
+  Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: {
+    speak: u => { window.__voix.dits.push(u.text); setTimeout(() => u.onend?.(), 0); },
+    cancel() {},
+  } });
+  window.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+});
+
+test('mode cuisine mains libres : désactivé par défaut, commandes après « Recette », lecture des étapes', async () => {
+  depotInitial();
+  await nouvellePage({ avant: fauxMicro });
+  await page.goto(BASE + '#/cuisine/tarte-tatin');
+  await page.locator('.etape-label').waitFor();
+  const dits = () => page.evaluate(() => window.__voix.dits);
+  const dire = async t => { await page.evaluate(t => window.__dire(t), t); await page.waitForTimeout(150); };
+
+  // Désactivé par défaut : micro éteint.
+  assert.equal(await page.getAttribute('#mains-libres', 'aria-pressed'), 'false');
+  assert.ok(await page.locator('#voix').isHidden());
+  assert.equal(await page.evaluate(() => window.__voix.reco), null, 'le micro n\'écoute pas');
+
+  await page.click('#mains-libres');
+  assert.equal(await page.getAttribute('#mains-libres', 'aria-pressed'), 'true');
+  assert.match(await page.textContent('#voix'), /J'écoute[\s\S]*Recette,[\s\S]*suivante/);
+  await sansDebordement('mode cuisine, mains libres');
+  await page.reload();
+  await page.locator('.etape-label').waitFor();
+  assert.equal(await page.getAttribute('#mains-libres', 'aria-pressed'), 'false', 'à rallumer à chaque fois');
+  await page.click('#mains-libres');
+  await page.waitForTimeout(100);
+  const etape1 = await page.evaluate(() => document.querySelector('.cuisine-texte').textContent);
+  assert.deepEqual(await dits(), [etape1.replace(/\s+/g, ' ').trim()], 'l\'étape affichée est lue');
+
+  // Sans « Recette » devant : rien ne se passe.
+  await dire('suivante');
+  await dire('cette recette est bonne et après on verra');
+  assert.match(await etape(), /Étape 1/);
+  await dire('Recette, suivante');
+  assert.match(await etape(), /Étape 2/);
+  assert.match(await page.textContent('.toast'), /« Suivante »/);
+  assert.equal((await dits()).length, 2, 'la nouvelle étape est lue');
+  await dire('recette précédente');
+  assert.match(await etape(), /Étape 1/);
+  assert.equal((await dits()).length, 3, 'relue en y revenant');
+  await dire('Recette, relis');
+  assert.equal((await dits()).at(-1), (await dits())[0]);
+  await dire('Recette, les ingrédients');
+  assert.equal((await dits()).length, 5);
+
+  // Minuteur de l'étape : lancer, mettre en pause, reprendre.
+  await dire('Recette, lance le minuteur');
+  assert.equal(await page.textContent('#m-lecture'), 'Pause');
+  await dire('Recette, pause');
+  assert.equal(await page.textContent('#m-lecture'), 'Reprendre');
+  await dire('Recette, démarre le minuteur');
+  assert.equal(await page.textContent('#m-lecture'), 'Pause');
+  await dire('Recette, arrête');
+  assert.equal(await page.textContent('#m-lecture'), 'Reprendre');
+  assert.equal((await dits()).length, 5, 'l\'étape redessinée (minuteur) n\'est pas relue');
+
+  // Sans lecture à voix haute (choix retenu).
+  await page.click('#voix-lire');
+  const avant = (await dits()).length;
+  await dire('Recette, suivante');
+  assert.match(await etape(), /Étape 2/);
+  assert.equal((await dits()).length, avant);
+  assert.equal(await page.evaluate(() => localStorage.getItem('mr.voix.lire')), 'non');
+
+  // Le téléphone coupe l'écoute après un silence : elle repart toute seule.
+  const n = await page.evaluate(() => window.__voix.demarrages);
+  await page.evaluate(() => window.__voix.reco.onend());
+  await page.waitForTimeout(400);
+  assert.equal(await page.evaluate(() => window.__voix.demarrages), n + 1);
+
+  // Éteindre : le micro s'arrête et ne repart pas.
+  await page.click('#mains-libres');
+  assert.ok(await page.locator('#voix').isHidden());
+  assert.equal(await page.evaluate(() => window.__voix.reco.actif), false);
+  await page.evaluate(() => window.__voix.reco.onend());
+  await page.waitForTimeout(400);
+  assert.equal(await page.evaluate(() => window.__voix.demarrages), n + 1);
+
+  // Micro refusé : message clair, mode coupé.
+  await page.click('#mains-libres');
+  await page.evaluate(() => window.__voix.reco.onerror({ error: 'not-allowed' }));
+  assert.match(await page.textContent('.toast'), /Micro refusé/);
+  assert.equal(await page.getAttribute('#mains-libres', 'aria-pressed'), 'false');
+
+  // En quittant le mode cuisine, le micro est coupé.
+  await page.click('#mains-libres');
+  await page.click('#fermer');
+  await page.waitForURL(u => !u.hash.includes('cuisine'));
+  assert.equal(await page.evaluate(() => window.__voix.reco.actif), false);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
