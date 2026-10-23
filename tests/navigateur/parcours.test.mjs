@@ -1911,3 +1911,22 @@ test('modifier : pendant l\'enregistrement, le bouton garde son texte et ne déb
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
+
+test('quantités : pas de fausse alerte pour « (T45) », « (11 g) » ; équivalences entre parenthèses recalculées', async () => {
+  depotInitial();
+  fichiers.set('recettes/carrot-cake.md', Buffer.from(`---\ntitre: Carrot cake\nportions: 8\n---\n## Ingrédients\n- 250 grammes farine (T45)\n- 1 sachet levure chimique (11g)\n- 250 grammes carottes (4 petites)\n- 8 g levure fraîche (ou 3 g de levure sèche)\n\n## Étapes\n1. Mélanger.\n`));
+  await nouvellePage();
+  // Modifier : aucune ligne signalée.
+  await page.goto(BASE + '#/modifier/carrot-cake');
+  await page.locator('#form').waitFor();
+  await page.waitForTimeout(200);
+  assert.doesNotMatch(await page.textContent('#form'), /Non recalculés/);
+  // Fiche pour 16 : quantités et équivalences doublées, le sachet garde ses 11 g, pas de « à ajuster ».
+  await page.goto(BASE + '#/recette/carrot-cake');
+  for (let k = 0; k < 8; k++) await page.click('#plus');
+  const lignes = await page.locator('[data-o=ingredients] .ingredient').evaluateAll(ls => ls.map(l => `${l.querySelector('.qte').textContent} ${l.querySelector('.nom').textContent.trim()}`));
+  assert.deepEqual(lignes, ['500 g farine (T45)', '2 sachets levure chimique (11g)', '500 g carottes (8 petites)', '16 g levure fraîche (ou 6 g de levure sèche)']);
+  assert.equal(await page.locator('.ajuster').count(), 0);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});

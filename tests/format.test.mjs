@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { listePhotos, parseRecipe, serializeRecipe, parseIngredient, formatQty, detectTimers, flatSteps, ingredientsForStep, textToGroups, slugify } from '../js/format.js';
+import { nonRecalcule, nomIngredient, listePhotos, parseRecipe, serializeRecipe, parseIngredient, formatQty, detectTimers, flatSteps, ingredientsForStep, textToGroups, slugify } from '../js/format.js';
 
 const DIR = new URL('./fixtures/', import.meta.url).pathname;
 
@@ -141,4 +141,27 @@ test('minuteurs : nommés d\'après le verbe devant la durée', () => {
   assert.deepEqual(noms('Enfourner 55 minutes (vérifier la cuisson à partir de 45 minutes).'), ['Enfourner · 55 minutes', 'Vérifier · 45 minutes']);
   assert.deepEqual(noms('Enfourner à 200 °C pendant 20 min, puis à 180 °C pendant 10 min.'), ['Enfourner · 20 min', '— · 10 min']);
   assert.deepEqual(noms('Ajouter le sucre 5 min.'), ['Ajouter · 5 min'], '« sucre » n\'est pas un verbe');
+});
+
+test('« à ajuster » : seulement les nombres que l\'app ne recalcule pas', () => {
+  const aAjuster = l => nonRecalcule(parseIngredient(l));
+  // Quantité en début de ligne, recalculée ; parenthèses et « T45 » ne sont que des précisions.
+  for (const l of ['250 grammes farine (T45)', '1 sachet levure chimique (11g)', '250 grammes carottes (4 petites)', '1 pot yaourt (125 g)', 'farine T55', '3 oeufs', 'sel'])
+    assert.equal(aAjuster(l), false, l);
+  // Quantité ailleurs qu'en début de ligne : l'app ne sait pas la recalculer.
+  for (const l of ['Lait : 50 cL', 'Farine : 200 g', '2 œufs + 1 jaune', 'sucre, environ 30 g'])
+    assert.equal(aAjuster(l), true, l);
+});
+
+test('équivalences entre parenthèses recalculées, pas le contenu d\'un sachet ou d\'un pot', () => {
+  const nom = (l, k) => nomIngredient(parseIngredient(l), k);
+  assert.equal(nom('8 g levure fraîche (ou 3 g de levure sèche)', 2), 'levure fraîche (ou 6 g de levure sèche)');
+  assert.equal(nom('250 grammes carottes (4 petites)', 1.5), 'carottes (6 petites)');
+  assert.equal(nom('40 g poudre d\'amandes (ou 30 g de farine)', 0.5), 'poudre d\'amandes (ou 15 g de farine)');
+  assert.equal(nom('150 g jus de citron (environ 2 gros citrons)', 2), 'jus de citron (environ 4 gros citrons)');
+  assert.equal(nom('1 sachet levure chimique (11g)', 2), 'levure chimique (11g)', 'par sachet');
+  assert.equal(nom('1 pot yaourt (125 g)', 2), 'yaourt (125 g)', 'par pot');
+  assert.equal(nom('250 grammes farine (T45)', 2), 'farine (T45)');
+  assert.equal(nom('8 g levure fraîche (ou 3 g de levure sèche)', 1), 'levure fraîche (ou 3 g de levure sèche)');
+  assert.equal(nom('sel', 2), 'sel');
 });

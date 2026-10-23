@@ -1,7 +1,7 @@
 // Mode cuisine : une étape par écran, minuteurs (plusieurs à la fois), écran maintenu allumé.
 
 import * as store from '../store.js';
-import { flatSteps, ingredientsForStep, formatQty, detectTimers } from '../format.js';
+import { flatSteps, ingredientsForStep, formatQty, nomIngredient, detectTimers } from '../format.js';
 import { esc, icon, texteEtape, toast } from '../ui.js';
 import { ecouter, reconnaissancePossible } from '../voix.js';
 import * as M from '../minuteurs.js';
@@ -109,7 +109,7 @@ export function cuisine(root, { params, query }) {
         <div class="puces-ing">${ings.map(g => {
           const k = tousIngs.indexOf(g);
           const pris = coches().includes(k);
-          return `<button class="${pris ? 'pris' : ''}" data-k="${k}" aria-pressed="${pris}">${g.qty != null ? `<b>${esc(formatQty(g, facteur))}</b> ` : ''}${esc(g.qty == null ? g.raw : g.name)}</button>`;
+          return `<button class="${pris ? 'pris' : ''}" data-k="${k}" aria-pressed="${pris}">${g.qty != null ? `<b>${esc(formatQty(g, facteur))}</b> ` : ''}${esc(nomIngredient(g, facteur))}</button>`;
         }).join('')}</div>` : ''}
       ${timers.length ? `
         ${timers.length > 1 ? `<div class="choix-durees">${timers.map((t, k) => `<button data-k="${k}" aria-pressed="${k === choixDuree}"
@@ -197,7 +197,7 @@ export function cuisine(root, { params, query }) {
     relis: lireEtape,
     ingredients: () => {
       const ings = ingredientsForStep(r, steps[i]);
-      voix.parler(ings.length ? ings.map(g => (g.qty != null ? `${formatQty(g, facteur)} ${g.name}` : g.raw)).join(', ')
+      voix.parler(ings.length ? ings.map(g => (g.qty != null ? `${formatQty(g, facteur)} ${nomIngredient(g, facteur)}` : g.raw)).join(', ')
         : 'Pas d\'ingrédient pour cette étape.');
     },
   };

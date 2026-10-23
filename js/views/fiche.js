@@ -1,7 +1,7 @@
 // Fiche recette : photo, temps, onglets Ingrédients / Étapes / Notes.
 
 import * as store from '../store.js';
-import { formatQty, formatDuree, flatSteps, nonRecalcule, listePhotos, lireMoule, texteMoule, facteurMoule, AVIS } from '../format.js';
+import { formatQty, nomIngredient, formatDuree, flatSteps, nonRecalcule, listePhotos, lireMoule, texteMoule, facteurMoule, AVIS } from '../format.js';
 import { ajouterAuxCourses } from './courses.js';
 import { esc, icon, visuel, chargerPhotos, ouvrirVisionneuse, tempsTotal, texteEtape, texteNotes, retour, toast, ongletsGlissants } from '../ui.js';
 
@@ -136,7 +136,7 @@ export function fiche(root, { params, query }) {
         if (badge) aAjuster = true;
         return `<label class="ingredient"><input type="checkbox" data-k="${k}" ${etat.coches.includes(k) ? 'checked' : ''}>
           <span class="case">${icon('check')}</span>
-          <span class="qte">${esc(formatQty(ing, facteur()))}</span><span class="nom">${esc(ing.qty == null ? ing.raw : ing.name)}${badge ? ' <span class="ajuster">à ajuster</span>' : ''}</span></label>`;
+          <span class="qte">${esc(formatQty(ing, facteur()))}</span><span class="nom">${esc(nomIngredient(ing, facteur()))}${badge ? ' <span class="ajuster">à ajuster</span>' : ''}</span></label>`;
       }).join('')}`).join('');
       const mien = etat.monMoule;
       const taille = (id, v, nom) => `<div class="stepper petit">
