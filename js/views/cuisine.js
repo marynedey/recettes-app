@@ -182,14 +182,10 @@ export function cuisine(root, { params, query }) {
     bloc.classList.toggle('fini', !!m?.fini);
     bloc.classList.toggle('sonne', !!m?.sonne); // clignote seulement tant que ça sonne
     bloc.querySelector('#lib').textContent = m?.fini ? 'Terminé !' : (m ? m.label : libelle(courant.s, defaut));
-    // Le bouton principal dit ce qu'il fait (une icône seule n'était pas parlante une fois terminé).
-    const [ic, texte] = M.enCours(m) ? ['pause', 'Pause'] : m?.sonne ? ['stop', 'Arrêter']
-      : m?.fini ? ['reset', 'Relancer'] : m ? ['play', 'Reprendre'] : ['play', 'Démarrer'];
+    // Le bouton principal dit ce qu'il fait, en texte seul, centré comme « −1 min » et « +1 min ».
+    const texte = M.enCours(m) ? 'Pause' : m?.sonne ? 'Arrêter' : m?.fini ? 'Relancer' : m ? 'Reprendre' : 'Démarrer';
     const lecture = bloc.querySelector('#m-lecture');
-    if (lecture.dataset.etat !== texte) {
-      lecture.dataset.etat = texte;
-      lecture.innerHTML = `${icon(ic, ic === 'reset' ? 'trait' : '')}${texte}`;
-    }
+    if (lecture.textContent !== texte) lecture.textContent = texte;
     corps.querySelector('#m-reset').hidden = !m;
   }
 

@@ -571,7 +571,7 @@ test('courses : « Voir la liste » après l\'ajout, articles ajoutés à la mai
   assert.equal(await page.locator('.article').count(), 2, 'une ligne vide n\'ajoute rien');
   assert.equal(await page.evaluate(() => document.activeElement.name), 'texte', 'le champ reste prêt pour l\'article suivant');
   assert.equal(await article('Citrons').locator('.art-qte').textContent(), '2');
-  assert.equal(await article('Papier cuisson').locator('.art-qte').textContent(), 'à vérifier');
+  assert.equal(await article('Papier cuisson').locator('.art-qte').textContent(), '', 'rien d\'écrit pour un article sans quantité ajouté à la main');
 
   // Depuis une fiche : le message propose d'ouvrir la liste.
   await page.goto(BASE + '#/recette/tarte-tatin');
@@ -1259,6 +1259,28 @@ test('écrans : toujours ouverts en haut, la position n\'est retrouvée qu\'au r
   await page.click('#enreg');
   await page.waitForURL(/#\/recette\/risotto/);
   assert.doesNotMatch(ecritures.find(w => w.chemin === 'recettes/risotto-aux-champignons.md').contenu, /difficulte/);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('courses : le retour Android ferme « Quelles recettes ? » sans quitter les courses', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/');
+  await page.goto(BASE + '#/courses');
+  await page.click('#ajouter-recettes');
+  await page.click('.f-recette:has-text("Tarte tatin")');
+  await page.goBack();
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('.feuille').count(), 0, 'feuille fermée');
+  assert.match(page.url(), /#\/courses$/);
+  assert.equal(await page.locator('.prevue').count(), 1, 'la recette choisie est bien prévue');
+  // Le bouton « Terminé » de la feuille ferme aussi sans changer d'écran.
+  await page.click('#ajouter-recettes');
+  await page.click('#f-fermer');
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('.feuille').count(), 0);
+  assert.match(page.url(), /#\/courses$/);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

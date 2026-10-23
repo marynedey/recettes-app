@@ -287,12 +287,10 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .minuteur.sonne { animation: sonne 1s ease-in-out infinite; }
 .minuteur.fini .val { stroke: var(--accent); }
 @keyframes sonne { 50% { background: #FFE2CC; } }
-.minuteur-btns { display: flex; flex-direction: column; gap: 10px; flex: 1; }
-.minuteur-btns button { height: 48px; border-radius: 14px; border: 1px solid var(--bordure); background: var(--carte); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.minuteur-btns { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
+.minuteur-btns button { min-width: 0; padding: 0 8px; height: 48px; border-radius: 14px; border: 1px solid var(--bordure); background: var(--carte); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .minuteur-btns .lecture { background: var(--minuteur); border-color: var(--minuteur); color: var(--encre); }
-.minuteur-btns .lecture svg.i { fill: currentColor; stroke: none; }
-/* Texte centré comme « −1 min » / « +1 min » : l'icône est compensée à droite. */
-.minuteur-btns .lecture::after { content: ''; width: 20px; flex: none; }
+
 .choix-durees { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 14px; }
 .choix-durees button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--bordure); background: var(--carte); font-size: 14px; }
 .choix-durees button[aria-pressed="true"] { border-color: var(--minuteur); background: var(--pastel); }
@@ -467,7 +465,6 @@ button.toast-action { background: none; border: 0; padding: 0; font: inherit; }
 .vignette-photo { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .vignette-photo.deplacee { z-index: 2; opacity: .9; box-shadow: 0 10px 24px rgba(43, 33, 24, .3); transition: none; }
 .vignette-photo.cible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.minuteur-btns .lecture svg.i.trait { fill: none; stroke: currentColor; }
 /* Minuteur terminé : bandeau en haut de tous les écrans, tant que ça sonne. */
 .alarme {
   position: fixed; z-index: 60; left: 12px; right: 12px; top: calc(var(--haut) + 10px); max-width: 520px; margin: 0 auto;

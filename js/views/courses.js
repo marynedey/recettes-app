@@ -118,7 +118,8 @@ export function courses(root) {
 }
 
 function article(a, info, ouvert) {
-  const qte = a.sansQuantite ? 'à vérifier' : C.texteQuantites(a);
+  // Sans quantité : rien pour un article ajouté à la main ; « selon la recette » sinon (« sel, poivre »).
+  const qte = !a.sansQuantite ? C.texteQuantites(a) : a.details.every(d => d.ajout) ? '' : 'selon la recette';
   const reste = info.manque
     ? (info.manque.n ? `il manque ${C.formatQuantite(info.manque.n, info.manque.unite)}` : 'j\'en ai assez ✓')
     : '';
@@ -230,9 +231,15 @@ function choisirRecettes(apres) {
   };
   afficher();
   el.querySelector('input').addEventListener('input', ev => afficher(ev.target.value));
-  const fermer = () => { el.remove(); document.body.classList.remove('sans-defilement'); apres(); };
-  el.querySelector('#f-fermer').addEventListener('click', fermer);
-  el.addEventListener('click', ev => { if (ev.target === el) fermer(); });
+  // Une entrée d'historique : le retour Android ferme la feuille au lieu de quitter les courses.
+  history.pushState({ feuille: true }, '');
+  const fermer = () => {
+    window.removeEventListener('popstate', fermer);
+    el.remove(); document.body.classList.remove('sans-defilement'); apres();
+  };
+  window.addEventListener('popstate', fermer);
+  el.querySelector('#f-fermer').addEventListener('click', () => history.back());
+  el.addEventListener('click', ev => { if (ev.target === el) history.back(); });
 }
 
 /** Depuis une fiche : ajoute (ou met à jour) la recette avec le nombre de personnes affiché. */
