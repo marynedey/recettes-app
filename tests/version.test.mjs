@@ -18,3 +18,11 @@ test('le service worker met en cache tous les fichiers JS', () => {
   ];
   for (const f of fichiers) assert.ok(sw.includes(`'${f}'`), `${f} manque dans FICHIERS (sw.js)`);
 });
+
+test('manifeste : raccourcis (appui long sur l\'icône) avec leurs icônes', () => {
+  const m = JSON.parse(lire('manifest.webmanifest'));
+  assert.deepEqual(m.shortcuts.map(s => s.url), ['./#/courses', './#/ajouter']);
+  for (const icone of [...m.icons, ...m.shortcuts.flatMap(s => s.icons)]) {
+    assert.ok(readdirSync(new URL('../icons/', import.meta.url)).includes(icone.src.replace('icons/', '')), `${icone.src} manque`);
+  }
+});
