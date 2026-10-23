@@ -108,8 +108,8 @@ const UNITS = [
   ['c\\. ?à ?soupe', 'c. à soupe'], ['c\\. ?à ?café', 'c. à café'],
   ['c\\. ?à ?s\\.?', 'c. à soupe'], ['c\\. ?à ?c\\.?', 'c. à café'],
   ['càs', 'c. à soupe'], ['càc', 'c. à café'], ['cs', 'c. à soupe'], ['cc', 'c. à café'], ['cas', 'c. à soupe'], ['cac', 'c. à café'],
-  ['kilos?', 'kg'], ['kg', 'kg'], ['grammes?', 'g'], ['gr\\.?', 'g'], ['mg', 'mg'], ['g', 'g'],
-  ['litres?', 'L'], ['dl', 'dL'], ['cl', 'cL'], ['ml', 'mL'], ['l', 'L'],
+  ['kilogrammes?', 'kg'], ['kilos?', 'kg'], ['milligrammes?', 'mg'], ['kg', 'kg'], ['grammes?', 'g'], ['gr\\.?', 'g'], ['mg', 'mg'], ['g', 'g'],
+  ['centilitres?', 'cL'], ['millilitres?', 'mL'], ['décilitres?', 'dL'], ['litres?', 'L'], ['dl', 'dL'], ['cl', 'cL'], ['ml', 'mL'], ['l', 'L'],
   ['pincées?', 'pincée'], ['sachets?', 'sachet'], ['pots?', 'pot'], ['verres?', 'verre'], ['tasses?', 'tasse'],
   ['gousses?', 'gousse'], ['tranches?', 'tranche'], ['boîtes?', 'boîte'], ['brins?', 'brin'], ['bottes?', 'botte'],
   ['feuilles?', 'feuille'], ['poignées?', 'poignée'], ['bouquets?', 'bouquet'], ['filets?', 'filet'],
@@ -155,8 +155,11 @@ export function parseIngredient(raw) {
     ing.unit = found ? found[1] : u[1];
     rest = rest.slice(u[0].length);
   }
+  // « 1 c. à café rase cannelle » : la précision de la cuillère va après le nom.
+  const precision = rest.match(/^(rases?|bomb[ée]es?|pleines?)\s+/i);
+  if (precision) rest = rest.slice(precision[0].length);
   rest = rest.replace(/^(de |d['’]\s*)/i, '');
-  ing.name = rest.trim();
+  ing.name = rest.trim() + (precision ? ` (${precision[1].toLowerCase()})` : '');
   return ing;
 }
 
@@ -166,7 +169,8 @@ function arrondi(n, unit) {
     if (n >= 10) return Math.round(n);
     return Math.round(n * 10) / 10;
   }
-  if (['kg', 'L', 'dL', 'cL'].includes(unit)) return Math.round(n * 100) / 100;
+  if (unit === 'cL') return Math.round(n * 2) / 2; // 11,25 cL → 11,5 cL
+  if (['kg', 'L', 'dL'].includes(unit)) return Math.round(n * 100) / 100;
   // Unités « comptables » : on vise le quart le plus proche.
   const q = Math.round(n * 4) / 4;
   return q === 0 ? Math.round(n * 100) / 100 : q;
@@ -220,6 +224,12 @@ export function nomIngredient(ing, factor = 1) {
 }
 
 /** Quantité formatée (« 200 g », « 1½ c. à soupe ») pour un facteur donné. */
+/**
+ * Quantité adaptée telle qu'affichée sur la fiche (arrondie, sauf sans changement de personnes) :
+ * la liste de courses additionne exactement ces nombres-là.
+ */
+export const quantiteAdaptee = (n, unit, factor = 1) => (factor === 1 ? n : arrondi(n * factor, unit));
+
 export function formatQty(ing, factor = 1) {
   if (ing.qty == null) return '';
   const a = ing.qty * factor;

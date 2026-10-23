@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseRecipe } from '../js/format.js';
+import { parseRecipe, formatQty } from '../js/format.js';
 import { listeDeCourses, cleIngredient, nomCourses, formatQuantite, manque, texteQuantites, rayon } from '../js/courses.js';
 
 const recette = (md, slug = 't') => parseRecipe(md, `recettes/${slug}.md`);
@@ -63,7 +63,7 @@ test('rayons', () => {
 
 test('recettes d\'exemple : liste cohérente', () => {
   const l = listeDeCourses([{ recette: fixture('cinnamon-rolls'), portions: 24 }]);
-  assert.equal(texteQuantites(trouver(l, 'Beurre')), '452 g');   // (113 + 113) × 2
+  assert.equal(texteQuantites(trouver(l, 'Beurre')), '450 g');   // 113 × 2 → 225 g sur la fiche, deux fois
   assert.equal(texteQuantites(trouver(l, 'Farine')), '1,08 kg + 2 c. à soupe');
 });
 
@@ -162,7 +162,20 @@ test('retirer un article d\'un glissement : supprimé, masqué, revient si les q
 test('liste de courses avec un moule : quantités exactes (portions non entières)', () => {
   const r = fixture('tarte-tatin'); // pour 6
   const l = listeDeCourses([{ recette: r, portions: 6 * 1.36, moule: 'rond 28 cm' }]);
-  assert.equal(texteQuantites(trouver(l, 'Farine')), '272 g', '200 g × 1,36 = 272 g, sans arrondir à 8 personnes (267 g)');
+  assert.equal(texteQuantites(trouver(l, 'Farine')), '270 g', '200 g × 1,36 → 270 g comme sur la fiche (et non 265 g pour 8 personnes)');
   assert.equal(texteQuantites(trouver(l, 'Pommes Golden')), '8¼', '8,16 pommes : jamais arrondi vers le bas');
-  assert.equal(texteQuantites(trouver(l, 'Fleur de sel')), '1½ pincées', '1,36 → 1½');
+  assert.equal(texteQuantites(trouver(l, 'Fleur de sel')), '1¼ pincées', '1,36 → 1¼, comme sur la fiche');
+});
+
+test('liste et fiche : mêmes quantités, mêmes unités (carrot cake pour 9 au lieu de 8)', () => {
+  const r = recette(`---\ntitre: Carrot cake\nportions: 8\n---\n## Ingrédients\n- 250 grammes carottes (4 petites)\n- 10 centilitres huile de pépins de raisin\n- 1 cuillère à café rase cannelle\n- 40 grammes beurre (demi-sel ici (doux possible))\n- 1 c. à soupe miel\n`, 'carrot-cake');
+  const l = listeDeCourses([{ recette: r, portions: 9 }]);
+  for (const ing of r.ingredients[0].items) {
+    const a = l.find(x => x.cle === cleIngredient(ing.name));
+    assert.equal(texteQuantites(a), formatQty(ing, 9 / 8), ing.raw);
+  }
+  assert.equal(texteQuantites(trouver(l, 'Carottes')), '280 g', 'et non 282 g');
+  assert.equal(texteQuantites(trouver(l, 'Huile de pépins de raisin')), '11,5 cL');
+  assert.ok(trouver(l, 'Beurre'), '« Beurre » et non « Beurre ) »');
+  assert.ok(trouver(l, 'Cannelle'));
 });
