@@ -269,7 +269,8 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .cuisine-corps { flex: 1; }
 .petit-label { color: var(--gris); font-size: 13px; letter-spacing: .1em; font-weight: 600; text-transform: uppercase; margin-bottom: 10px; }
 .puces-ing { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
-.puces-ing span { padding: 8px 14px; border: 1px solid var(--bordure); background: var(--carte); border-radius: 12px; font-size: 16px; }
+.puces-ing button { padding: 8px 14px; border: 1px solid var(--bordure); background: var(--carte); border-radius: 12px; font-size: 16px; color: var(--encre); text-align: left; transition: opacity .15s; }
+.puces-ing button.pris { opacity: .5; text-decoration: line-through; background: transparent; }
 .puces-ing b { font-weight: 600; }
 
 .minuteur { background: var(--carte); border: 1px solid var(--bordure); border-radius: 22px; padding: 18px; display: flex; gap: 18px; align-items: center; }
@@ -282,13 +283,16 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .anneau .temps.long { font-size: 25px; }
 .anneau .temps { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .anneau .lib { font-size: 12px; color: var(--gris); line-height: 1.2; }
-.minuteur.fini { border-color: var(--accent); animation: sonne 1s ease-in-out infinite; }
+.minuteur.fini { border-color: var(--accent); }
+.minuteur.sonne { animation: sonne 1s ease-in-out infinite; }
 .minuteur.fini .val { stroke: var(--accent); }
 @keyframes sonne { 50% { background: #FFE2CC; } }
 .minuteur-btns { display: flex; flex-direction: column; gap: 10px; flex: 1; }
 .minuteur-btns button { height: 48px; border-radius: 14px; border: 1px solid var(--bordure); background: var(--carte); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .minuteur-btns .lecture { background: var(--minuteur); border-color: var(--minuteur); color: var(--encre); }
 .minuteur-btns .lecture svg.i { fill: currentColor; stroke: none; }
+/* Texte centré comme « −1 min » / « +1 min » : l'icône est compensée à droite. */
+.minuteur-btns .lecture::after { content: ''; width: 20px; flex: none; }
 .choix-durees { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 14px; }
 .choix-durees button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--bordure); background: var(--carte); font-size: 14px; }
 .choix-durees button[aria-pressed="true"] { border-color: var(--minuteur); background: var(--pastel); }
@@ -303,7 +307,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .minuteur-mini .m-etape { flex: none; }
 .minuteur-mini.ici { box-shadow: inset 0 0 0 2px var(--minuteur); }
 .minuteur-mini .m-lib { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--brun); }
-.minuteur-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.minuteur-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; }
 .minuteur-actions .lien { display: inline-flex; align-items: center; gap: 6px; padding: 6px 2px; }
 .minuteur-actions .lien svg.i { width: 16px; height: 16px; }
 .choix-durees button.a-minuteur::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--accent-vif); vertical-align: 1px; }
@@ -374,7 +378,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
   scroll-snap-type: x mandatory; scrollbar-width: none; margin: 0 -20px;
 }
 .onglets-piste::-webkit-scrollbar { display: none; }
-.panneau { flex: 0 0 100%; padding: 0 20px; scroll-snap-align: start; scroll-snap-stop: always; min-height: 45vh; }
+.panneau { flex: 0 0 100%; padding: 0 20px; scroll-snap-align: start; scroll-snap-stop: always; }
 .retour-tete { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 
 /* ---------- courses ---------- */

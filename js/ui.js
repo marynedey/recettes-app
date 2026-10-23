@@ -192,7 +192,7 @@ export function ongletsGlissants(root, piste, { depart, surChangement = () => {}
   let affiche = i;
   const remonter = () => {
     const haut = barre?.getBoundingClientRect().top ?? 0;
-    if (haut < 0) window.scrollBy({ top: haut - 12, behavior: 'smooth' });
+    if (haut < 0) window.scrollBy({ top: haut - 12, behavior: 'instant' });
   };
 
   const ajusterHauteur = () => { piste.style.height = `${panneaux[i].offsetHeight}px`; };

@@ -34,6 +34,18 @@ export function cuisine(root, { params, query }) {
   let i = Math.min(etapeDemandee ?? (Number(sessionStorage.getItem(cle)) || 0), steps.length - 1);
   store.marquerCuisinee(r.slug);
 
+  // Ingrédients déjà mis : les mêmes cases que sur la fiche (sessionStorage « mr.fiche.<slug> »),
+  // repérés par leur rang dans la liste complète des ingrédients.
+  const tousIngs = r.ingredients.flatMap(g => g.items);
+  const cleFiche = 'mr.fiche.' + r.slug;
+  const lireFiche = () => { try { return JSON.parse(sessionStorage.getItem(cleFiche)); } catch { return null; } };
+  const coches = () => lireFiche()?.coches || [];
+  const cocher = (k, oui) => {
+    const e = lireFiche() || { onglet: 'ingredients', portions, coches: [] };
+    e.coches = oui ? [...new Set([...e.coches, k])] : e.coches.filter(x => x !== k);
+    sessionStorage.setItem(cleFiche, JSON.stringify(e));
+  };
+
   root.className = 'cuisine';
   root.innerHTML = `
     <div class="cuisine-tete">
@@ -72,8 +84,9 @@ export function cuisine(root, { params, query }) {
     if (choixDuree >= timers.length) choixDuree = 0;
     const id = timers.length ? M.idMinuteur(r.slug, i, choixDuree) : null;
     courant = { s, timers, id };
-    // Tous les minuteurs lancés pour cette recette, celui de l'étape affichée compris.
-    const autres = M.deRecette(r.slug);
+    // Minuteurs de la recette en cours, en pause ou qui sonnent (un minuteur terminé et
+    // arrêté n'a plus rien à dire ; celui de l'étape affichée reste sur sa carte).
+    const autres = M.deRecette(r.slug).filter(m => !m.fini || m.sonne);
 
     root.querySelector('#barre').style.width = `${((i + 1) / steps.length) * 100}%`;
     corps.innerHTML = `
@@ -84,7 +97,11 @@ export function cuisine(root, { params, query }) {
       ${s.group ? `<div class="etape-groupe">${esc(s.group)}</div>` : ''}
       <p class="cuisine-texte">${texteEtape(s.texte)}</p>
       ${ings.length ? `<div class="petit-label">Pour cette étape</div>
-        <div class="puces-ing">${ings.map(g => `<span>${g.qty != null ? `<b>${esc(formatQty(g, facteur))}</b> ` : ''}${esc(g.qty == null ? g.raw : g.name)}</span>`).join('')}</div>` : ''}
+        <div class="puces-ing">${ings.map(g => {
+          const k = tousIngs.indexOf(g);
+          const pris = coches().includes(k);
+          return `<button class="${pris ? 'pris' : ''}" data-k="${k}" aria-pressed="${pris}">${g.qty != null ? `<b>${esc(formatQty(g, facteur))}</b> ` : ''}${esc(g.qty == null ? g.raw : g.name)}</button>`;
+        }).join('')}</div>` : ''}
       ${timers.length ? `
         ${timers.length > 1 ? `<div class="choix-durees">${timers.map((t, k) => `<button data-k="${k}" aria-pressed="${k === choixDuree}"
           class="${M.obtenir(M.idMinuteur(r.slug, i, k)) ? 'a-minuteur' : ''}">${esc(t.texte)}</button>`).join('')}</div>` : ''}
@@ -98,7 +115,7 @@ export function cuisine(root, { params, query }) {
           </div>
         </div>
         <div class="minuteur-actions">
-          <button class="lien" id="m-reset" hidden>Réinitialiser</button>
+          <button class="bouton secondaire petit" id="m-reset" hidden>${icon('reset')}Réinitialiser</button>
         </div>` : ''}`;
 
     const prec = root.querySelector('#prec');
@@ -111,6 +128,13 @@ export function cuisine(root, { params, query }) {
       if (!m) return;
       if (m.id === id) corps.querySelector('#minuteur')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       else allerA(m.etape, +m.id.split('|')[2]);
+    }));
+    // Toucher un ingrédient : « c'est mis » (grisé et barré), comme cocher sur la fiche.
+    corps.querySelectorAll('.puces-ing button').forEach(b => b.addEventListener('click', () => {
+      const pris = !b.classList.contains('pris');
+      b.classList.toggle('pris', pris);
+      b.setAttribute('aria-pressed', pris);
+      cocher(+b.dataset.k, pris);
     }));
     corps.querySelectorAll('.choix-durees button').forEach(b => b.addEventListener('click', () => {
       choixDuree = +b.dataset.k;
@@ -156,6 +180,7 @@ export function cuisine(root, { params, query }) {
     tBloc.classList.toggle('long', affiche >= 3600);
     bloc.querySelector('.val').style.strokeDashoffset = String(100 - (m && m.total ? affiche / m.total : 1) * 100);
     bloc.classList.toggle('fini', !!m?.fini);
+    bloc.classList.toggle('sonne', !!m?.sonne); // clignote seulement tant que ça sonne
     bloc.querySelector('#lib').textContent = m?.fini ? 'Terminé !' : (m ? m.label : libelle(courant.s, defaut));
     // Le bouton principal dit ce qu'il fait (une icône seule n'était pas parlante une fois terminé).
     const [ic, texte] = M.enCours(m) ? ['pause', 'Pause'] : m?.sonne ? ['stop', 'Arrêter']
@@ -216,9 +241,11 @@ export function cuisine(root, { params, query }) {
   root.querySelector('#prec').onclick = () => aller(-1);
   root.querySelector('#suiv').onclick = () => aller(1);
   root.querySelector('#recommencer').onclick = () => {
-    if (!confirm('Recommencer la recette depuis l\'étape 1 ? Les minuteurs de cette recette seront arrêtés.')) return;
+    if (!confirm('Recommencer la recette depuis l\'étape 1 ? Les minuteurs seront arrêtés et les ingrédients décochés.')) return;
     M.arreterRecette(r.slug);
     sessionStorage.removeItem(cle);
+    const e = lireFiche();
+    if (e) { e.coches = []; sessionStorage.setItem(cleFiche, JSON.stringify(e)); }
     allerA(0);
     toast('Recette recommencée');
   };
