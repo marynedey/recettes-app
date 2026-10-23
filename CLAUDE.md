@@ -52,7 +52,7 @@ ajoutee: 2026-10-22
 ## Étapes
 ### Pour la pâte           (même nom de groupe → ingrédients proposés en mode cuisine)
 1. …
-2. … (minuteur détecté automatiquement si « 12 min » dans le texte ; **gras** = mis en valeur)
+2. … (minuteur détecté automatiquement si « 12 min » dans le texte, nommé d'après le verbe juste avant (« cuire encore 1 min » → « Cuire encore · 1 min », doublons numérotés) ; **gras** = mis en valeur)
 
 ## Notes
 …

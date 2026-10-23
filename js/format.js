@@ -220,9 +220,38 @@ export function detectTimers(text) {
     let sec = unit.startsWith('h') ? n * 3600 : n * 60;
     if (unit.startsWith('h') && m[4] && !m[2]) sec += parseInt(m[4], 10) * 60;
     else if (m[4]) continue; // « 5 min 30 » ambigu après une plage : on ignore la fin
-    if (sec > 0 && sec <= 24 * 3600) out.push({ secondes: Math.round(sec), texte: m[0].trim(), index: m.index });
+    if (sec > 0 && sec <= 24 * 3600) out.push({ secondes: Math.round(sec), texte: m[0].trim(), index: m.index, fin: m.index + m[0].length });
   }
+  nommerMinuteurs(String(text), out);
   return out;
+}
+
+// Mots en -er/-ir/-re qui ne sont pas des verbes d'action (« à partir de », « le sucre »…).
+const PAS_VERBES = new Set('amer autre beurre centre encore cher cidre contre cuiller dernier desir entier entre fer hiver leger libre litre maitre membre mer nombre notre ordre panier papier partir plaisir poivre premier propre saladier sombre sucre tiroir verre votre'.split(' '));
+const verbe = mot => /^\p{L}{3,}(er|ir|re|ez)$/iu.test(mot) && !PAS_VERBES.has(sansAccents(mot).toLowerCase());
+
+/**
+ * Nom de chaque minuteur : le dernier verbe juste avant la durée, dans le même bout de phrase
+ * (« … et cuire encore 1 min » → « Cuire encore »). Sans verbe : nom vide.
+ * Deux minuteurs au même nom : « Fouetter encore », « Fouetter encore (2) ».
+ */
+function nommerMinuteurs(texte, minuteurs) {
+  let debut = 0;
+  const vus = {};
+  for (const t of minuteurs) {
+    const avant = texte.slice(debut, t.index);
+    debut = t.fin;
+    const morceau = avant.slice(Math.max(...['.', ';', ':', '!', '?', '(', ')', ','].map(c => avant.lastIndexOf(c))) + 1);
+    const mots = morceau.replace(/\*\*/g, '').split(/[\s'’]+/).filter(Boolean);
+    let k = mots.length - 1;
+    while (k >= 0 && !verbe(mots[k])) k--;
+    if (k < 0) { t.nom = ''; continue; }
+    let nom = mots[k] + (/^encore$/i.test(mots[k + 1] || '') ? ' encore' : '');
+    nom = nom[0].toUpperCase() + nom.slice(1).toLowerCase();
+    const cle = `${nom}|${t.texte}`;
+    vus[cle] = (vus[cle] || 0) + 1;
+    t.nom = vus[cle] > 1 ? `${nom} (${vus[cle]})` : nom;
+  }
 }
 
 export function formatDuree(minutes) {

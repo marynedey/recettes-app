@@ -414,8 +414,9 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .minuteur-btns .lecture { background: var(--minuteur); border-color: var(--minuteur); color: #2B2118; } /* foncé dans les deux modes */
 
 .choix-durees { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 14px; }
-.choix-durees button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--bordure); background: var(--carte); font-size: 14px; }
+.choix-durees button { min-height: 36px; text-align: left; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--bordure); background: var(--carte); font-size: 14px; }
 .choix-durees button[aria-pressed="true"] { border-color: var(--minuteur); background: var(--pastel); }
+.choix-durees button b { font-weight: 600; }
 .minuteur-mini {
   display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding: 10px 14px; border-radius: 14px; background: var(--pastel); font-weight: 600;
 }

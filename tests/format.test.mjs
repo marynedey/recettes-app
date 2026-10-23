@@ -130,3 +130,15 @@ test('moule : formes, surfaces et facteur des quantités', async () => {
   assert.equal(facteurMoule(lireMoule('carré 20'), lireMoule('rectangle 30 x 20')), 1.5);
   assert.equal(texteMoule(lireMoule('rectangle 22,5 x 11')), 'rectangle 22,5 x 11 cm');
 });
+
+test('minuteurs : nommés d\'après le verbe devant la durée', () => {
+  const noms = t => detectTimers(t).map(x => `${x.nom || '—'} · ${x.texte}`);
+  assert.deepEqual(noms('Ajouter la cannelle, fouetter vitesse moyenne 1 minute). Ajouter la farine. Fouetter encore en vitesse moyenne 1 minute. Enfin ajouter l\'huile. Fouetter encore 1 minute vitesse moyenne.'),
+    ['Fouetter · 1 minute', 'Fouetter encore · 1 minute', 'Fouetter encore (2) · 1 minute']);
+  assert.deepEqual(noms('Verser 80 mL de pâte et cuire environ 2 min : quand c\'est doré, retourner et cuire encore 1 min.'),
+    ['Cuire · 2 min', 'Cuire encore · 1 min']);
+  // « à partir de » n'est pas une action ; sans verbe, pas de nom.
+  assert.deepEqual(noms('Enfourner 55 minutes (vérifier la cuisson à partir de 45 minutes).'), ['Enfourner · 55 minutes', 'Vérifier · 45 minutes']);
+  assert.deepEqual(noms('Enfourner à 200 °C pendant 20 min, puis à 180 °C pendant 10 min.'), ['Enfourner · 20 min', '— · 10 min']);
+  assert.deepEqual(noms('Ajouter le sucre 5 min.'), ['Ajouter · 5 min'], '« sucre » n\'est pas un verbe');
+});
