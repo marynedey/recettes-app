@@ -279,7 +279,7 @@ test('aucun écran ne déborde en largeur, même avec le texte agrandi (réglage
   depotInitial();
   await nouvellePage();
   // Des courses prévues, pour que l'écran Courses ait une liste à afficher.
-  await page.evaluate(() => localStorage.setItem('mr.courses', JSON.stringify({ prevues: [{ slug: 'cinnamon-rolls', portions: 12 }, { slug: 'risotto-aux-champignons', portions: 4 }], articles: {} })));
+  await page.evaluate(() => localStorage.setItem('mr.courses', JSON.stringify({ prevues: [{ slug: 'cinnamon-rolls', portions: 12 }, { slug: 'risotto-aux-champignons', portions: 4 }], articles: { farine: { coche: true } } })));
   const ecrans = ['#/', '#/recettes', '#/recette/cinnamon-rolls', '#/cuisine/cinnamon-rolls', '#/modifier/cinnamon-rolls', '#/ajouter', '#/ajouter?manuel=1', '#/reglages', '#/courses'];
   for (const ecran of ecrans) {
     await page.goto(BASE + ecran);
@@ -304,6 +304,11 @@ test('aucun écran ne déborde en largeur, même avec le texte agrandi (réglage
         .map(e => `${e.tagName.toLowerCase()}${e.className ? '.' + String(e.className).split(' ').join('.') : ''}`);
     });
     assert.deepEqual(depassent, [], `${ecran} : éléments plus larges que l'écran`);
+    // Texte d'un bouton qui ne tient plus dedans (il passe à la ligne et déborde en hauteur).
+    const coupes = await page.evaluate(() => [...document.querySelectorAll('.bouton, button')]
+      .filter(b => b.offsetParent && b.scrollHeight > b.clientHeight + 2)
+      .map(b => b.textContent.trim().slice(0, 30)));
+    assert.deepEqual(coupes, [], `${ecran} : texte qui déborde d'un bouton`);
   }
   assert.deepEqual(erreurs, []);
   await ctx.close();

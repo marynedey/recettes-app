@@ -173,13 +173,15 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 /* ---------- boutons ---------- */
 .bouton {
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-  height: 56px; padding: 0 24px; border-radius: 16px; font-weight: 600; font-size: 17px; text-decoration: none;
+  /* Hauteur minimale : avec le texte agrandi d'Android, le bouton grandit au lieu de déborder. */
+  min-height: 56px; padding: 8px 24px; line-height: 1.2; text-align: center;
+  border-radius: 16px; font-weight: 600; font-size: 17px; text-decoration: none;
   background: var(--accent); color: #fff;
 }
 .bouton:active { background: var(--accent-fonce); }
 .bouton.secondaire { background: var(--carte); color: var(--encre); border: 1px solid var(--bordure); }
 .bouton.danger { background: none; color: #A3341A; border: 1px solid #E8C2B4; }
-.bouton.petit { height: 44px; font-size: 15px; padding: 0 16px; border-radius: 12px; }
+.bouton.petit { min-height: 44px; font-size: 15px; padding: 6px 16px; border-radius: 12px; }
 .bouton.large { width: 100%; }
 .bouton[disabled] { opacity: .55; }
 .bouton svg.i { width: 18px; height: 18px; }
@@ -411,8 +413,8 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .ajout-article input { flex: 1; min-width: 0; height: 48px; padding: 0 14px; border: 1px solid var(--bordure); border-radius: 14px; background: var(--carte); font-size: 16px; }
 .ajout-article .btn-rond { width: 48px; height: 48px; background: var(--accent); color: #fff; border: 0; }
 .art-detail .lien { font-size: 13px; margin-left: 6px; }
-.actions-courses { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; }
-.actions-courses .bouton { flex: 1; }
+.actions-courses { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+.actions-courses .bouton { width: 100%; }
 .feuille-fond { position: fixed; inset: 0; z-index: 55; background: rgba(43, 33, 24, .45); display: flex; align-items: flex-end; justify-content: center; }
 .feuille { width: 100%; max-width: 560px; max-height: 85dvh; display: flex; flex-direction: column; background: var(--fond); border-radius: 24px 24px 0 0; padding: 18px 20px calc(var(--bas) + 18px); }
 .feuille-tete { display: flex; align-items: center; justify-content: space-between; }
