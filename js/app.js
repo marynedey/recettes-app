@@ -43,6 +43,9 @@ export function parseHash() {
   return { path, query: new URLSearchParams(qs || '') };
 }
 
+// Un écran s'ouvre toujours en haut ; seul le retour arrière retrouve la position d'avant.
+// (Chrome déclenche aussi « popstate » pour une nouvelle ancre : on marque plutôt chaque
+// entrée d'historique déjà affichée, et on ne retrouve la position que sur celles-là.)
 const positions = new Map();
 let dernierRendu = '';
 
@@ -66,7 +69,9 @@ function rendre() {
     app.appendChild(page);
     nettoyage = vue(page, { params, query, rerendre: rendre }) || null;
     if (onglet) app.insertAdjacentHTML('beforeend', tabbar(onglet));
-    window.scrollTo(0, positions.get(location.hash) || 0);
+    const dejaVue = !!history.state?.mr;
+    window.scrollTo(0, dejaVue ? positions.get(location.hash) || 0 : 0);
+    if (!dejaVue) history.replaceState({ ...history.state, mr: 1 }, '');
     return;
   }
   location.replace('#/');

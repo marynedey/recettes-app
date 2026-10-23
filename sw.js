@@ -1,6 +1,6 @@
 // Service worker : met l'application en cache pour un usage hors ligne.
 // Les recettes et photos sont gérées par l'app elle-même (localStorage + Cache API).
-const VERSION = 'mr-app-1.11.0'; // = version de l'app (js/views/reglages.js)
+const VERSION = 'mr-app-1.12.0'; // = version de l'app (js/views/reglages.js)
 const FICHIERS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/courses.js', 'js/format.js', 'js/github.js', 'js/minuteurs.js', 'js/push.js', 'js/store.js', 'js/ui.js',
@@ -50,7 +50,7 @@ const ecrire = async (nom, valeur) => (await caches.open(DONNEES)).put(donnee(no
 
 const SONNERIE = { icon: 'icons/icon-192.png', badge: 'icons/badge-minuteur.png', requireInteraction: true, vibrate: [400, 200, 400, 200, 400, 200, 400] };
 const BOUTONS = [{ action: 'arreter', title: 'Arrêter' }, { action: 'plus1', title: '+1 min' }];
-const heure = ms => new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const heure = ms => new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 // Toucher une notification ramène à l'app, sur le mode cuisine de la recette ;
 // ses boutons « Arrêter » et « +1 min » agissent sans ouvrir l'app.

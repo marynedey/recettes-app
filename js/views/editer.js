@@ -1,7 +1,7 @@
 // Ajout (import par lien ou saisie manuelle) et modification d'une recette.
 
 import * as store from '../store.js';
-import { CATEGORIES, DIFFICULTES, emptyRecipe, groupsToText, textToGroups, parseIngredient, nonRecalcule, listePhotos } from '../format.js';
+import { CATEGORIES, emptyRecipe, groupsToText, textToGroups, parseIngredient, nonRecalcule, listePhotos } from '../format.js';
 import { esc, icon, retour, toast, ongletsGlissants } from '../ui.js';
 
 function formulaire(root, r, { titrePage, onAnnuler }) {
@@ -30,8 +30,6 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
         <label class="champ"><span>Cuisson (min)</span><input name="cuisson" type="number" inputmode="numeric" min="0" value="${esc(m.cuisson)}"></label>
         <label class="champ"><span>Repos (min)</span><input name="repos" type="number" inputmode="numeric" min="0" value="${esc(m.repos)}"><small>Pousse, frigo, marinade…</small></label>
       </div>
-      <div class="champ"><span>Difficulté</span>
-        <div class="choix">${DIFFICULTES.map(d => `<label><input type="radio" name="difficulte" value="${d}" ${d === (m.difficulte || 'Facile') ? 'checked' : ''}><span>${d}</span></label>`).join('')}</div></div>
       <label class="champ"><span>Ingrédients</span>
         <textarea name="ingredients" rows="8" placeholder="200 g farine&#10;6 pommes Golden&#10;1 pincée fleur de sel">${esc(groupsToText(r.ingredients))}</textarea>
         <small>Un ingrédient par ligne, quantité en premier (« 200 g farine »). Pour des sous-parties, écrire une ligne « ### Pour la pâte ».</small></label>
@@ -178,9 +176,9 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
       preparation: num('preparation'),
       cuisson: num('cuisson'),
       repos: num('repos'),
-      difficulte: d.get('difficulte'),
       source: d.get('source').trim(),
     });
+    delete r.meta.difficulte; // plus de niveau : rien n'est difficile en cuisine
     r.ingredients = textToGroups(d.get('ingredients')).map(g => ({ group: g.group, items: g.items.map(parseIngredient) }));
     r.etapes = textToGroups(d.get('etapes'));
     r.notes = d.get('notes').trim();

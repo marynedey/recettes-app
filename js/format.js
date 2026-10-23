@@ -3,7 +3,6 @@
 // Module sans dépendance au navigateur : testable avec `node --test`.
 
 export const CATEGORIES = ['Plats', 'Desserts', 'Entrées', 'Végé', 'Apéro', 'Boissons', 'Petit-déj', 'Goûter', 'Sauces', 'Pains'];
-export const DIFFICULTES = ['Facile', 'Moyen', 'Difficile'];
 const META_ORDER = ['titre', 'categorie', 'tags', 'portions', 'preparation', 'cuisson', 'repos', 'difficulte', 'photo', 'photos', 'source', 'ajoutee'];
 
 /* ---------- utilitaires ---------- */
@@ -392,7 +391,7 @@ export function listePhotos(meta) {
 export function emptyRecipe() {
   return {
     slug: '', path: '',
-    meta: { titre: '', categorie: 'Plats', tags: [], portions: 4, preparation: '', cuisson: '', repos: '', difficulte: 'Facile', source: '', ajoutee: new Date().toISOString().slice(0, 10) },
+    meta: { titre: '', categorie: 'Plats', tags: [], portions: 4, preparation: '', cuisson: '', repos: '', source: '', ajoutee: new Date().toISOString().slice(0, 10) },
     ingredients: [], etapes: [], notes: '',
   };
 }

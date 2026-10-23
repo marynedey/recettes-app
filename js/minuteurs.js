@@ -40,8 +40,8 @@ export function lancer({ id, slug, titre, etape, label, secondes }) {
   if (m && !m.fini) {
     if (m.fin === null && m.reste > 0) m.fin = Date.now() + m.reste * 1000;
   } else {
-    // Nouveau minuteur, ou relance d'un minuteur terminé.
-    const total = m?.total || secondes;
+    // Nouveau minuteur, ou relance d'un minuteur terminé : durée de l'étape, sans les ±1 min.
+    const total = secondes || m?.total;
     tous[id] = { id, slug, titre, etape, label, total, fin: Date.now() + total * 1000, reste: total, fini: false };
   }
   maj(id);
@@ -216,12 +216,10 @@ export async function demanderNotifications() {
   Object.values(tous).forEach(notifier);
 }
 
-const heure = ms => new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-export const duree = s => {
-  if (s >= 3600) return `${Math.floor(s / 3600)} h ${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}`;
-  if (s >= 60) return `${Math.ceil(s / 60)} min`;
-  return `${s} s`;
-};
+// Heures, minutes et secondes, comme sur le minuteur de l'app.
+const heure = ms => new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const deux = n => String(n).padStart(2, '0');
+export const duree = s => (s >= 3600 ? `${Math.floor(s / 3600)}:${deux(Math.floor(s % 3600 / 60))}:${deux(s % 60)}` : `${Math.floor(s / 60)}:${deux(s % 60)}`);
 
 // Le texte d'une notification ne dépend pas du temps qui passe (« prêt à 21:42 ») :
 // il reste exact même quand Android met l'app en pause et qu'elle ne peut plus le rafraîchir.

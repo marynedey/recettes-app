@@ -194,7 +194,7 @@ test('mode cuisine : étapes, retour = étape précédente, minuteur, ingrédien
   await page.click('#cuisiner');
   assert.match(await etape(), /Étape 1\s*sur 18/);
   await page.click('#suiv');
-  assert.deepEqual(await page.locator('.puces-ing span').allTextContents(),
+  assert.deepEqual(await page.locator('.puces-ing button').allTextContents(),
     ['8 g levure boulangère', '1 c. à soupe sucre (pour la levure)', '1 c. à soupe farine (pour la levure)'],
     'la quantité citée choisit le bon sucre et la bonne farine');
   await page.click('#suiv'); await page.click('#suiv');
@@ -1184,6 +1184,81 @@ test('fiche : en changeant d\'onglet depuis le bas de la page, on arrive en haut
   await page.click('[role=tab][data-o=ingredients]');
   await page.waitForTimeout(800);
   assert.equal(await page.evaluate(() => window.scrollY), 0);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('mode cuisine : ingrédients cochés, minuteur arrêté (sans clignoter), relancé à sa durée, réinitialisé', async () => {
+  depotInitial();
+  await nouvellePage({ horloge: true });
+  await page.goto(BASE + '#/recette/cinnamon-rolls');
+  await page.click('#cuisiner');
+  await page.click('#suiv');
+  // Toucher un ingrédient le grise et le barre ; la fiche le montre coché.
+  const puce = page.locator('.puces-ing button').first();
+  await puce.click();
+  assert.match(await puce.getAttribute('class'), /pris/);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.puces-ing .pris')).textDecorationLine), 'line-through');
+  await page.click('#fermer');
+  await page.locator('.fiche-feuille').waitFor();
+  await page.click('[role=tab][data-o=ingredients]');
+  assert.equal(await page.locator('.ingredient input:checked').count(), 1, 'la même case est cochée sur la fiche');
+  await page.click('#cuisiner');
+  assert.match(await page.locator('.puces-ing button').first().getAttribute('class'), /pris/);
+
+  // Étape 7 de la tarte tatin : 12 min.
+  await page.goto(BASE + '#/cuisine/tarte-tatin');
+  for (let k = 0; k < 5; k++) await page.click('#suiv');
+  await page.click('#m-plus'); await page.click('#m-plus'); // 14 min
+  await page.click('#m-lecture');
+  await page.clock.fastForward('14:00');
+  await page.waitForTimeout(300);
+  assert.match(await page.getAttribute('#minuteur', 'class'), /sonne/);
+  await page.click('#m-lecture'); // Arrêter
+  assert.doesNotMatch(await page.getAttribute('#minuteur', 'class'), /sonne/, 'ne clignote plus');
+  // Relancer : la durée de l'étape (12 min), pas la dernière valeur (14 min).
+  await page.click('#m-lecture');
+  assert.match(await page.textContent('#t-bloc'), /^(12:00|11:59)$/);
+  // Réinitialiser : bien visible, remet le minuteur à zéro.
+  assert.ok(await page.locator('#m-reset').isVisible());
+  await page.click('#m-reset');
+  assert.equal(await page.textContent('#t-bloc'), '12:00');
+  assert.equal((await page.textContent('#m-lecture')).trim(), 'Démarrer');
+
+  // Un minuteur terminé et arrêté ne reste pas dans le bandeau des autres étapes.
+  await page.click('#m-lecture');
+  await page.clock.fastForward('12:00');
+  await page.waitForTimeout(300);
+  await page.click('#m-lecture'); // Arrêter
+  await page.click('#suiv');
+  assert.equal(await page.locator('.minuteur-mini').count(), 0);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('écrans : toujours ouverts en haut, la position n\'est retrouvée qu\'au retour arrière ; plus de niveau', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.evaluate(() => window.scrollTo(0, 400));
+  const y = await page.evaluate(() => window.scrollY);
+  assert.ok(y > 0);
+  await page.goto(BASE + '#/reglages');
+  assert.equal(await page.evaluate(() => window.scrollY), 0);
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await page.goBack();
+  await page.waitForTimeout(200);
+  assert.equal(await page.evaluate(() => window.scrollY), y, 'retour arrière : position retrouvée');
+  await page.goto(BASE + '#/reglages');
+  assert.equal(await page.evaluate(() => window.scrollY), 0, 'réglages rouverts en haut');
+
+  // Le niveau n'apparaît plus, et disparaît du fichier à l'enregistrement.
+  await page.goto(BASE + '#/recette/risotto-aux-champignons');
+  assert.doesNotMatch(await page.textContent('.stats'), /Niveau|Moyen/);
+  await page.goto(BASE + '#/modifier/risotto-aux-champignons');
+  assert.equal(await page.locator('[name=difficulte]').count(), 0);
+  await page.click('#enreg');
+  await page.waitForURL(/#\/recette\/risotto/);
+  assert.doesNotMatch(ecritures.find(w => w.chemin === 'recettes/risotto-aux-champignons.md').contenu, /difficulte/);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

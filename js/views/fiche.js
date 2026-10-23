@@ -45,7 +45,6 @@ export function fiche(root, { params }) {
         <div><b>${m.preparation ? esc(formatDuree(+m.preparation)) : '–'}</b><span>Préparation</span></div>
         <div><b>${m.cuisson ? esc(formatDuree(+m.cuisson)) : '–'}</b><span>Cuisson</span></div>
         ${m.repos ? `<div><b>${esc(formatDuree(+m.repos))}</b><span>Repos</span></div>` : ''}
-        <div><b>${esc(m.difficulte || '–')}</b><span>Niveau</span></div>
       </div>
       ${m.repos && tempsTotal(r) ? `<p class="total">Temps total : <b>${esc(formatDuree(tempsTotal(r)))}</b></p>` : ''}
       <div class="segments" role="tablist">
