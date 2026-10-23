@@ -117,7 +117,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .visuel.a-photo .rond, .visuel.a-photo .assiette { display: none; }
 .carrousel { position: absolute; inset: 0; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
 .carrousel::-webkit-scrollbar { display: none; }
-.diapo { flex: 0 0 100%; scroll-snap-align: center; }
+.diapo { flex: 0 0 100%; scroll-snap-align: center; scroll-snap-stop: always; }
 .diapo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .points { position: absolute; z-index: 2; left: 0; right: 0; bottom: 42px; display: flex; justify-content: center; gap: 6px; pointer-events: none; }
 .points span { width: 7px; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .6); box-shadow: 0 0 3px rgba(0, 0, 0, .3); transition: width .2s; }
@@ -253,7 +253,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .barre-bas .bouton, .cuisine-nav .bouton { min-width: 0; padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- mode cuisine ---------- */
-.cuisine { min-height: 100dvh; display: flex; flex-direction: column; padding: calc(var(--haut) + 16px) 20px calc(var(--bas) + 16px); }
+.cuisine { min-height: 100dvh; display: flex; flex-direction: column; padding: calc(var(--haut) + 16px) 20px calc(var(--bas) + 110px); }
 .cuisine-tete { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .badge-veille { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: var(--pastel); color: var(--brun); font-size: 14px; font-weight: 500; }
 .badge-veille.off { background: var(--doux); color: var(--gris); }
@@ -299,12 +299,18 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .minuteurs-autres { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
 .minuteurs-autres .minuteur-mini { width: 100%; margin: 0; text-align: left; }
 .minuteur-mini .m-etape { flex: none; }
+.minuteur-mini.ici { box-shadow: inset 0 0 0 2px var(--minuteur); }
 .minuteur-mini .m-lib { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--brun); }
 .minuteur-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 10px; }
 .minuteur-actions .lien { display: inline-flex; align-items: center; gap: 6px; padding: 6px 2px; }
 .minuteur-actions .lien svg.i { width: 16px; height: 16px; }
 .choix-durees button.a-minuteur::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--accent-vif); vertical-align: 1px; }
-.cuisine-nav { display: flex; gap: 12px; padding-top: 18px; }
+.cuisine-nav {
+  /* Toujours visible en bas de l'écran ; le reste de l'étape défile au-dessus. */
+  position: fixed; z-index: 15; left: 0; right: 0; bottom: 0;
+  display: flex; gap: 12px; padding: 14px 20px calc(var(--bas) + 16px);
+  background: linear-gradient(to top, var(--fond) 75%, rgba(246, 240, 230, 0));
+}
 .cuisine-nav .bouton { height: 64px; flex: 1; font-size: 18px; }
 .cuisine-nav .bouton.secondaire { flex: .8; }
 
@@ -361,11 +367,13 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .aide-bloc table { border-collapse: collapse; margin-bottom: 10px; width: calc(100% - 28px); table-layout: fixed; }
 .aide-bloc th, .aide-bloc td { text-align: left; padding: 5px 6px 5px 0; border-bottom: 1px solid var(--bordure); }
 .aide-bloc th { color: var(--gris); font-weight: 500; }
-#contenu { min-height: 55vh; }
-#contenu.glisse-g { animation: depuis-droite .22s ease-out; }
-#contenu.glisse-d { animation: depuis-gauche .22s ease-out; }
-@keyframes depuis-droite { from { opacity: 0; transform: translateX(24px); } }
-@keyframes depuis-gauche { from { opacity: 0; transform: translateX(-24px); } }
+.onglets-piste {
+  display: flex; align-items: flex-start; overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; scrollbar-width: none; margin: 0 -20px;
+  transition: height .25s ease;
+}
+.onglets-piste::-webkit-scrollbar { display: none; }
+.panneau { flex: 0 0 100%; padding: 0 20px; scroll-snap-align: start; scroll-snap-stop: always; min-height: 45vh; }
 .retour-tete { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 
 /* ---------- visionneuse ---------- */
@@ -373,7 +381,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .visionneuse { position: fixed; inset: 0; z-index: 60; background: #000; }
 .v-defile { position: absolute; inset: 0; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
 .v-defile::-webkit-scrollbar { display: none; }
-.v-photo { flex: 0 0 100%; scroll-snap-align: center; display: grid; place-items: center; touch-action: pan-x pinch-zoom; }
+.v-photo { flex: 0 0 100%; scroll-snap-align: center; scroll-snap-stop: always; display: grid; place-items: center; touch-action: pan-x pinch-zoom; }
 .v-photo img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .v-fermer { position: absolute; z-index: 2; top: calc(var(--haut) + 14px); right: 16px; }
 .v-compteur { position: absolute; z-index: 2; left: 50%; bottom: calc(var(--bas) + 24px); transform: translateX(-50%); padding: 6px 14px; border-radius: 999px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 14px; font-variant-numeric: tabular-nums; }

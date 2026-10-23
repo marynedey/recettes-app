@@ -115,7 +115,7 @@ async function demarrer() {
     });
     // Notification de minuteur touchée : le service worker demande d'aller sur la recette.
     navigator.serviceWorker.addEventListener('message', e => {
-      if (e.data?.aller && !location.hash.startsWith(e.data.aller)) location.hash = e.data.aller;
+      if (e.data?.aller && location.hash !== e.data.aller) location.hash = e.data.aller;
     });
     navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(e => console.warn('SW', e));
   }

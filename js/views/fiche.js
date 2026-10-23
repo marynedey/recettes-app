@@ -52,7 +52,11 @@ export function fiche(root, { params }) {
         <button role="tab" data-o="etapes">Étapes</button>
         <button role="tab" data-o="notes">Notes</button>
       </div>
-      <div id="contenu" role="tabpanel"></div>
+      <div class="onglets-piste" id="piste">
+        <div class="panneau" role="tabpanel" data-o="ingredients"></div>
+        <div class="panneau" role="tabpanel" data-o="etapes"></div>
+        <div class="panneau" role="tabpanel" data-o="notes"></div>
+      </div>
     </div>
     ${steps.length ? `<div class="barre-bas"><div><a class="bouton" id="cuisiner" href="#/cuisine/${encodeURIComponent(r.slug)}">${icon('play')}Lancer le mode cuisine</a></div></div>` : ''}`;
 
@@ -92,11 +96,15 @@ export function fiche(root, { params }) {
   const btnCuisine = root.querySelector('#cuisiner');
   const majLien = () => { if (btnCuisine) btnCuisine.href = `#/cuisine/${encodeURIComponent(r.slug)}?p=${etat.portions}`; };
 
-  const contenu = root.querySelector('#contenu');
+  // Les trois onglets sont côte à côte dans une piste qui défile horizontalement :
+  // le contenu suit le doigt, et s'aimante sur l'onglet le plus proche.
+  const piste = root.querySelector('#piste');
+  const panneaux = Object.fromEntries([...piste.children].map(p => [p.dataset.o, p]));
   const facteur = () => (base ? etat.portions / base : 1);
 
   const vues = {
     ingredients() {
+      const contenu = panneaux.ingredients;
       let i = 0;
       const ajuste = facteur() !== 1;
       let aAjuster = false;
@@ -113,7 +121,7 @@ export function fiche(root, { params }) {
           <button id="plus" aria-label="Plus de personnes">${icon('plus')}</button></div></div>` : ''}
         ${lignes || '<div class="vide"><p>Aucun ingrédient.</p></div>'}
         ${aAjuster ? `<p class="aide note-ajuster"><span class="ajuster">à ajuster</span> : quantité que l'app n'a pas su recalculer pour ${etat.portions} personne${etat.portions > 1 ? 's' : ''}, à multiplier vous-même (×${String(Math.round(facteur() * 100) / 100).replace('.', ',')}).</p>` : ''}`;
-      const changer = d => { etat.portions = Math.max(1, etat.portions + d); sauver(); majLien(); vues.ingredients(); };
+      const changer = d => { etat.portions = Math.max(1, etat.portions + d); sauver(); majLien(); vues.ingredients(); ajusterHauteur(); };
       contenu.querySelector('#moins')?.addEventListener('click', () => changer(-1));
       contenu.querySelector('#plus')?.addEventListener('click', () => changer(1));
       contenu.querySelectorAll('input[type=checkbox]').forEach(c => c.addEventListener('change', () => {
@@ -124,11 +132,12 @@ export function fiche(root, { params }) {
     },
     etapes() {
       let n = 0;
-      contenu.innerHTML = r.etapes.map(g => `${g.group ? `<h3 class="groupe-titre">${esc(g.group)}</h3>` : ''}
+      panneaux.etapes.innerHTML = r.etapes.map(g => `${g.group ? `<h3 class="groupe-titre">${esc(g.group)}</h3>` : ''}
         <ol class="etapes">${g.items.map(t => `<li class="etape"><span class="num">${++n}</span><p>${texteEtape(t)}</p></li>`).join('')}</ol>`).join('')
         || '<div class="vide"><p>Aucune étape.</p></div>';
     },
     notes() {
+      const contenu = panneaux.notes;
       const src = m.source ? (/^https?:\/\//.test(m.source)
         ? `<div class="source">Source : <a href="${esc(m.source)}" target="_blank" rel="noopener">${esc(m.source.replace(/^https?:\/\/(www\.)?/, '').slice(0, 60))}</a></div>`
         : `<div class="source">Source : ${esc(m.source)}</div>`) : '';
@@ -149,30 +158,27 @@ export function fiche(root, { params }) {
     },
   };
 
+  const ordre = ['ingredients', 'etapes', 'notes'];
   const onglets = root.querySelectorAll('[role=tab]');
-  const ouvrir = o => {
-    etat.onglet = o; sauver();
+  // La piste prend la hauteur de l'onglet affiché (sinon, celle du plus long).
+  const ajusterHauteur = () => { piste.style.height = `${panneaux[etat.onglet].offsetHeight}px`; };
+  const marquer = o => {
+    if (etat.onglet !== o) { etat.onglet = o; sauver(); }
     onglets.forEach(b => b.setAttribute('aria-selected', b.dataset.o === o));
-    vues[o]();
+    ajusterHauteur();
+  };
+  const ouvrir = (o, doux = true) => {
+    marquer(o);
+    piste.scrollTo({ left: ordre.indexOf(o) * piste.clientWidth, behavior: doux ? 'smooth' : 'instant' });
   };
   onglets.forEach(b => b.addEventListener('click', () => ouvrir(b.dataset.o)));
-
-  // Balayage gauche / droite sous les onglets pour changer d'onglet.
-  const ordre = ['ingredients', 'etapes', 'notes'];
-  let x0 = null, y0 = null;
-  contenu.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
-  contenu.addEventListener('touchend', e => {
-    if (x0 === null) return;
-    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
-    x0 = null;
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    const k = ordre.indexOf(etat.onglet) + (dx < 0 ? 1 : -1);
-    if (k < 0 || k >= ordre.length) return;
-    ouvrir(ordre[k]);
-    contenu.classList.remove('glisse-g', 'glisse-d');
-    void contenu.offsetWidth;
-    contenu.classList.add(dx < 0 ? 'glisse-g' : 'glisse-d');
+  // Glissement au doigt : l'onglet suit la position de la piste.
+  piste.addEventListener('scroll', () => {
+    const o = ordre[Math.round(piste.scrollLeft / piste.clientWidth)];
+    if (o && o !== etat.onglet) marquer(o);
   }, { passive: true });
+  new ResizeObserver(ajusterHauteur).observe(panneaux.ingredients);
+  ordre.forEach(o => vues[o]());
   majLien();
-  ouvrir(etat.onglet);
+  ouvrir(etat.onglet, false);
 }
