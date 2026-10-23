@@ -165,3 +165,13 @@ test('équivalences entre parenthèses recalculées, pas le contenu d\'un sachet
   assert.equal(nom('8 g levure fraîche (ou 3 g de levure sèche)', 1), 'levure fraîche (ou 3 g de levure sèche)');
   assert.equal(nom('sel', 2), 'sel');
 });
+
+test('unités écrites en entier, cuillère rase', () => {
+  const p = l => { const i = parseIngredient(l); return [i.qty, i.unit, i.name]; };
+  assert.deepEqual(p('10 centilitres huile'), [10, 'cL', 'huile']);
+  assert.deepEqual(p('250 millilitres lait'), [250, 'mL', 'lait']);
+  assert.deepEqual(p('2 décilitres crème'), [2, 'dL', 'crème']);
+  assert.deepEqual(p('1 kilogramme pommes'), [1, 'kg', 'pommes']);
+  assert.deepEqual(p('1 cuillère à café rase cannelle'), [1, 'c. à café', 'cannelle (rase)']);
+  assert.deepEqual(p('2 c. à soupe bombées de sucre'), [2, 'c. à soupe', 'sucre (bombées)']);
+});

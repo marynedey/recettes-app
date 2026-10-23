@@ -2,7 +2,7 @@
 // ingrédients additionnés et rangés par rayon, ce qu'on a déjà à la maison.
 // La partie calcul n'utilise pas le navigateur : testée avec `node --test`.
 
-import { sansAccents, formatNumber, formatQty, parseIngredient } from './format.js';
+import { sansAccents, formatNumber, formatQty, parseIngredient, quantiteAdaptee } from './format.js';
 
 /* ---------- unités ---------- */
 
@@ -26,7 +26,7 @@ export function formatQuantite(n, unite) {
   const f = (x, u) => formatNumber(x, u, true);
   if (unite === 'g' && n >= 1000) return `${f(n / 1000, 'kg')} kg`;
   if (unite === 'mL' && n >= 1000) return `${f(n / 1000, 'L')} L`;
-  if (unite === 'mL' && n >= 100 && n % 10 === 0) return `${f(n / 10, 'cL')} cL`;
+  if (unite === 'mL' && n >= 100 && n % 5 === 0) return `${f(n / 10, 'cL')} cL`; // 115 mL → 11,5 cL, comme la fiche
   if (unite === 'c. à café' && n >= 3 && Number.isInteger(n / 3)) return `${f(n / 3)} c. à soupe`;
   const s = f(n, unite);
   if (!unite) return s;
@@ -41,7 +41,10 @@ const PRECISIONS = /\b(fondus?|fondues?|froids?|froides?|tr[eè]s|ti[eè]des?|ch
 
 /** Nom affiché sur la liste : sans parenthèses ni précisions de préparation. */
 export function nomCourses(nom) {
-  return nom.replace(/\(.*?\)/g, '').replace(/,.*$/, '').replace(PRECISIONS, '')
+  // Parenthèses, même imbriquées (« beurre (demi-sel ici (doux possible)) ») : de l'intérieur vers l'extérieur.
+  let s = nom;
+  while (/\([^()]*\)/.test(s)) s = s.replace(/\([^()]*\)/g, '');
+  return s.replace(/[()]/g, '').replace(/,.*$/, '').replace(PRECISIONS, '')
     .replace(/^(de |d['’]\s*)/i, '').replace(/\s+/g, ' ').trim();
 }
 
@@ -83,7 +86,7 @@ export function listeDeCourses(prevues, ajouts = []) {
     let a = articles.get(cle);
     if (!a) {
       const affiche = nomCourses(nom) || nom;
-      a = { cle, nom: affiche[0].toUpperCase() + affiche.slice(1), rayon: rayon(cle), parUnite: new Map(), sansQuantite: false, details: [] };
+      a = { cle, nom: affiche[0].toUpperCase() + affiche.slice(1), rayon: rayon(cle), parUnite: new Map(), origine: new Map(), sansQuantite: false, details: [] };
       articles.set(cle, a);
     }
     if (ing.qty == null) {
@@ -92,10 +95,12 @@ export function listeDeCourses(prevues, ajouts = []) {
       return;
     }
     // Une fourchette (« 600-800 g ») : on achète pour le haut de la fourchette.
-    const q = (ing.qtyMax ?? ing.qty) * facteur;
+    // Même arrondi que la fiche : 281,25 g de carottes s'affichent 280 g des deux côtés.
+    const q = quantiteAdaptee(ing.qtyMax ?? ing.qty, ing.unit, facteur);
     const [unite, k] = CONVERSIONS[ing.unit] || [ing.unit, 1];
     a.parUnite.set(unite, (a.parUnite.get(unite) || 0) + q * k);
-    a.details.push({ ...detail, texte: `${formatQty(ing, facteur)} ${ing.name}`.trim() });
+    a.origine.set(ing.unit, (a.origine.get(ing.unit) || 0) + q);
+    a.details.push({ ...detail, quantite: true, texte: `${formatQty(ing, facteur)} ${ing.name}`.trim() });
   };
   for (const { recette: r, portions } of prevues) {
     const base = Number(r.meta.portions) || 0;
@@ -112,8 +117,12 @@ export function listeDeCourses(prevues, ajouts = []) {
   return [...articles.values()].map(a => ({
     cle: a.cle, nom: a.nom, rayon: a.rayon, details: a.details,
     // Poids et volumes d'abord : c'est la quantité principale (et celle de « j'en ai déjà »).
-    quantites: [...a.parUnite].map(([unite, n]) => ({ unite, n: Math.round(n * 100) / 100 }))
-      .sort((x, y) => ORDRE_UNITES.indexOf(y.unite) - ORDRE_UNITES.indexOf(x.unite)),
+    // Venu d'une seule ligne de recette : écrit exactement comme sur la fiche (« ½ c. à soupe », « 280 g ») ;
+    // plusieurs lignes : additionnées dans l'unité la plus naturelle (1 L + 25 cL → 1,25 L).
+    quantites: a.origine.size === 1 && a.details.filter(d => d.quantite).length === 1
+      ? [...a.origine].map(([unite, n]) => ({ unite, n: Math.round(n * 100) / 100, commeLaFiche: true }))
+      : [...a.parUnite].map(([unite, n]) => ({ unite, n: Math.round(n * 100) / 100 }))
+        .sort((x, y) => ORDRE_UNITES.indexOf(y.unite) - ORDRE_UNITES.indexOf(x.unite)),
     sansQuantite: a.sansQuantite && !a.parUnite.size,
   })).sort((x, y) => x.nom.localeCompare(y.nom, 'fr'));
 }
@@ -125,7 +134,7 @@ export function manque(article, dispo) {
   return { n: Math.max(0, Math.round((n - dispo) * 100) / 100), unite };
 }
 
-export const texteQuantites = a => a.quantites.map(q => formatQuantite(q.n, q.unite)).join(' + ');
+export const texteQuantites = a => a.quantites.map(q => (q.commeLaFiche ? formatQty({ qty: q.n, unit: q.unite }) : formatQuantite(q.n, q.unite))).join(' + ');
 
 /* ---------- liste partagée : opérations ---------- */
 

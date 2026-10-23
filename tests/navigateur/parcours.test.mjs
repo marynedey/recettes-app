@@ -483,16 +483,16 @@ test('courses : recettes prévues, liste additionnée par rayon, cases et « j\'
   assert.equal(await page.locator('.prevue').count(), 2);
 
   // Farine : 200 g × 8/6 (tatin) + 540 g et 1 c. à soupe (cinnamon rolls).
-  assert.match(await article('Farine').locator('.art-qte').textContent(), /^807 g \+ 1 c\. à soupe/);
+  assert.match(await article('Farine').locator('.art-qte').textContent(), /^805 g \+ 1 c\. à soupe/);
   assert.equal(await page.locator('h3.rayon').first().textContent(), 'Fruits et légumes');
 
-  // « J'en ai déjà » : 500 g de farine → il manque 307 g.
+  // « J'en ai déjà » : 500 g de farine → il manque 305 g.
   await article('Farine').locator('.art-corps').click();
   assert.match(await article('Farine').locator('.art-detail').textContent(), /Tarte tatin.*Cinnamon rolls/s);
   await article('Farine').locator('.art-dispo input').fill('500');
   await article('Farine').locator('.art-dispo input').press('Enter');
   await page.locator('.art-dispo input').blur();
-  assert.match(await article('Farine').locator('.art-qte small').textContent(), /il manque 307 g/);
+  assert.match(await article('Farine').locator('.art-qte small').textContent(), /il manque 305 g/);
 
   // Cocher : l'article passe en bas, barré ; tout survit à un rechargement.
   await article('Lait').locator('.art-case').click();
@@ -500,14 +500,14 @@ test('courses : recettes prévues, liste additionnée par rayon, cases et « j\'
   await page.reload();
   await page.locator('.article').first().waitFor();
   assert.match(await article('Lait').getAttribute('class'), /fait/);
-  assert.match(await article('Farine').locator('.art-qte small').textContent(), /il manque 307 g/);
+  assert.match(await article('Farine').locator('.art-qte small').textContent(), /il manque 305 g/);
 
   // Changer le nombre de personnes recalcule ; retirer une recette l'enlève de la liste.
   await page.locator('.prevue', { hasText: 'Tarte tatin' }).locator('[data-d="-1"]').click();
-  assert.match(await article('Farine').locator('.art-qte').textContent(), /^774 g/);
+  assert.match(await article('Farine').locator('.art-qte').textContent(), /^775 g/);
   await page.locator('.prevue', { hasText: 'Cinnamon rolls' }).locator('.pv-retirer').click();
   assert.equal(await article('Lait').count(), 0);
-  assert.match(await article('Farine').locator('.art-qte').textContent(), /^234 g/);
+  assert.match(await article('Farine').locator('.art-qte').textContent(), /^235 g/);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
@@ -1547,7 +1547,7 @@ test('moule : saisi dans « Modifier », quantités adaptées à mon moule sur l
   assert.equal(await page.textContent('.pv-moule'), 'Moule rond 28 cm');
   assert.equal(await page.textContent('.prevue .stepper b'), '≈8');
   const articles = await page.locator('.article').evaluateAll(as => as.map(a => a.textContent.replace(/\s+/g, ' ').trim()));
-  assert.ok(articles.includes('Farine 273 g'), `200 g × 1,36 arrondi au-dessus (et non 267 g pour 8 personnes) : ${articles}`);
+  assert.ok(articles.includes('Farine 270 g'), `200 g × 1,36 → 270 g, comme sur la fiche (et non 265 g pour 8 personnes) : ${articles}`);
   assert.ok(articles.includes('Pommes Golden 8¼'), 'jamais arrondi vers le bas');
   // + : on repasse en nombre de personnes.
   await page.click('.prevue [data-d="1"]');
