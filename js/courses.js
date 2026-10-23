@@ -21,12 +21,14 @@ const ORDRE_UNITES = ['c. à café', 'mL', 'g'];
  * Jamais arrondie vers le bas : sur une liste de courses, il ne doit rien manquer.
  */
 export function formatQuantite(n, unite) {
+  // Arrondi vers le haut : au gramme / millilitre près, sinon au quart (cuillères, pièces).
+  n = unite === 'g' || unite === 'mL' ? Math.ceil(n - 1e-9) : Math.ceil(n * 4 - 1e-9) / 4;
   const f = (x, u) => formatNumber(x, u, true);
   if (unite === 'g' && n >= 1000) return `${f(n / 1000, 'kg')} kg`;
   if (unite === 'mL' && n >= 1000) return `${f(n / 1000, 'L')} L`;
   if (unite === 'mL' && n >= 100 && n % 10 === 0) return `${f(n / 10, 'cL')} cL`;
   if (unite === 'c. à café' && n >= 3 && Number.isInteger(n / 3)) return `${f(n / 3)} c. à soupe`;
-  const s = f(Math.ceil(n * 10) / 10, unite);
+  const s = f(n, unite);
   if (!unite) return s;
   const pluriel = n > 1 && !['g', 'mL', 'c. à café', 'c. à soupe', 'noix'].includes(unite) && !unite.endsWith('s') ? 's' : '';
   return `${s} ${unite}${pluriel}`;
@@ -141,13 +143,14 @@ const normaliser = e => ({ ...vide(), ...(e || {}) });
 const lire = (k, defaut) => { try { return JSON.parse(localStorage.getItem(k)) ?? defaut; } catch { return defaut; } };
 const ecrire = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* stockage plein */ } };
 
-/** { prevues: [{ slug, portions }], ajouts: [{ id, texte }], articles: { [cle]: { coche, dispo } }, masques: { [cle]: signature } } */
+/** { prevues: [{ slug, portions, moule? }] (avec un moule : portions exactes, ex. 8,17), ajouts: [{ id, texte }], articles: { [cle]: { coche, dispo } }, masques: { [cle]: signature } } */
 export const etat = () => normaliser(lire(CLE, null));
 
 const OPS = {
-  prevoir(e, { slug, portions }) {
-    const p = e.prevues.find(x => x.slug === slug);
-    if (p) p.portions = portions; else e.prevues.push({ slug, portions });
+  prevoir(e, { slug, portions, moule }) {
+    let p = e.prevues.find(x => x.slug === slug);
+    if (p) p.portions = portions; else e.prevues.push(p = { slug, portions });
+    if (moule) p.moule = moule; else delete p.moule;
   },
   retirer(e, { slug }) { e.prevues = e.prevues.filter(x => x.slug !== slug); },
   ajouter(e, { id, texte }) { if (!e.ajouts.some(a => a.id === id)) e.ajouts.push({ id, texte }); },
@@ -184,7 +187,8 @@ function faire(type, args = {}) {
   if (depot) { ecrire(ATTENTE, [...lire(ATTENTE, []), { type, args }]); planifierEnvoi(); }
 }
 
-export const prevoir = (slug, portions) => faire('prevoir', { slug, portions });
+/** `moule` (« rond 28 cm ») : quantités pour ce moule, `portions` = son équivalent exact en personnes. */
+export const prevoir = (slug, portions, moule) => faire('prevoir', moule ? { slug, portions, moule } : { slug, portions });
 export const retirer = slug => faire('retirer', { slug });
 export const estPrevue = slug => etat().prevues.some(x => x.slug === slug);
 export const majArticle = (cle, champs) => faire('article', { cle, champs });

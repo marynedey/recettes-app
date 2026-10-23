@@ -95,7 +95,8 @@ test('formatQuantite : jamais arrondi vers le bas, unités naturelles', () => {
   assert.equal(formatQuantite(250, 'mL'), '25 cL');
   assert.equal(formatQuantite(1200, 'mL'), '1,2 L');
   assert.equal(formatQuantite(6, 'c. à café'), '2 c. à soupe');
-  assert.equal(formatQuantite(2.01, ''), '2,1');
+  assert.equal(formatQuantite(2.01, ''), '2¼', 'au quart supérieur');
+  assert.equal(formatQuantite(272.4, 'g'), '273 g', 'au gramme supérieur');
   assert.equal(formatQuantite(2, 'sachet'), '2 sachets');
 });
 
@@ -117,6 +118,11 @@ test('liste gardée sur le téléphone : prévoir, ajouter, retirer', async () =
   C.prevoir('a', 4); C.prevoir('b', 1);
   assert.deepEqual(C.etat().prevues, [{ slug: 'a', portions: 4 }, { slug: 'b', portions: 1 }]);
   assert.ok(C.estPrevue('b'));
+  // Avec un moule : équivalent exact en personnes et nom du moule ; sans moule ensuite, il disparaît.
+  C.prevoir('a', 8.17, 'rond 28 cm');
+  assert.deepEqual(C.etat().prevues[0], { slug: 'a', portions: 8.17, moule: 'rond 28 cm' });
+  C.prevoir('a', 9);
+  assert.deepEqual(C.etat().prevues[0], { slug: 'a', portions: 9 });
   C.retirer('b');
   assert.ok(!C.estPrevue('b'));
   C.ajouterArticle('  2 citrons ');
@@ -151,4 +157,12 @@ test('retirer un article d\'un glissement : supprimé, masqué, revient si les q
   // … mais revient si on prévoit plus de personnes (il en faut davantage).
   assert.equal(texteQuantites(trouver(liste(4), 'Sucre')), '200 g');
   delete globalThis.localStorage;
+});
+
+test('liste de courses avec un moule : quantités exactes (portions non entières)', () => {
+  const r = fixture('tarte-tatin'); // pour 6
+  const l = listeDeCourses([{ recette: r, portions: 6 * 1.36, moule: 'rond 28 cm' }]);
+  assert.equal(texteQuantites(trouver(l, 'Farine')), '272 g', '200 g × 1,36 = 272 g, sans arrondir à 8 personnes (267 g)');
+  assert.equal(texteQuantites(trouver(l, 'Pommes Golden')), '8¼', '8,16 pommes : jamais arrondi vers le bas');
+  assert.equal(texteQuantites(trouver(l, 'Fleur de sel')), '1½ pincées', '1,36 → 1½');
 });

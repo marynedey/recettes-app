@@ -34,10 +34,11 @@ export function courses(root) {
       ${prevues.length ? `<div class="prevues">${prevues.map(p => {
         const base = Number(p.recette.meta.portions) || 0;
         return `<div class="prevue" data-slug="${esc(p.slug)}">
-          <a class="pv-titre" href="#/recette/${encodeURIComponent(p.slug)}">${esc(p.recette.meta.titre)}</a>
+          <div class="pv-titre-bloc"><a class="pv-titre" href="#/recette/${encodeURIComponent(p.slug)}">${esc(p.recette.meta.titre)}</a>
+            ${p.moule ? `<small class="pv-moule">Moule ${esc(p.moule)}</small>` : ''}</div>
           <div class="stepper petit">
             <button data-d="-1" aria-label="Moins">${icon('minus')}</button>
-            <b>${base ? p.portions : `×${p.portions}`}</b>
+            <b>${!base ? `×${p.portions}` : p.moule ? `≈${Math.round(p.portions)}` : p.portions}</b>
             <button data-d="1" aria-label="Plus">${icon('plus')}</button>
           </div>
           <span class="pv-unite">${base ? `pers.` : 'fois'}</span>
@@ -67,8 +68,9 @@ export function courses(root) {
     root.querySelectorAll('.prevue').forEach(el => {
       const slug = el.dataset.slug;
       el.querySelectorAll('[data-d]').forEach(b => b.addEventListener('click', () => {
+        // Avec un moule, + / − repasse en nombre de personnes (à partir de l'équivalent arrondi).
         const p = C.etat().prevues.find(x => x.slug === slug);
-        C.prevoir(slug, Math.max(1, p.portions + Number(b.dataset.d)));
+        C.prevoir(slug, Math.max(1, Math.round(p.portions) + Number(b.dataset.d)));
         rendre();
       }));
       el.querySelector('.pv-retirer').addEventListener('click', () => { C.retirer(slug); rendre(); });
@@ -263,8 +265,8 @@ function choisirRecettes(apres) {
 }
 
 /** Depuis une fiche : ajoute (ou met à jour) la recette avec le nombre de personnes affiché. */
-export function ajouterAuxCourses(r, portions) {
-  C.prevoir(r.slug, portions || portionsDefaut(r));
-  toast(`Ajoutée aux courses${Number(r.meta.portions) ? ` (${portions} pers.)` : ''}`, 5000,
+export function ajouterAuxCourses(r, portions, moule) {
+  C.prevoir(r.slug, portions || portionsDefaut(r), moule);
+  toast(`Ajoutée aux courses${moule ? ` (moule ${moule})` : Number(r.meta.portions) ? ` (${portions} pers.)` : ''}`, 5000,
     { texte: 'Voir la liste', href: '#/courses' });
 }

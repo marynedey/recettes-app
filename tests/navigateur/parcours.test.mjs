@@ -482,16 +482,16 @@ test('courses : recettes prévues, liste additionnée par rayon, cases et « j\'
   assert.equal(await page.locator('.prevue').count(), 2);
 
   // Farine : 200 g × 8/6 (tatin) + 540 g et 1 c. à soupe (cinnamon rolls).
-  assert.match(await article('Farine').locator('.art-qte').textContent(), /^806,7 g \+ 1 c\. à soupe/);
+  assert.match(await article('Farine').locator('.art-qte').textContent(), /^807 g \+ 1 c\. à soupe/);
   assert.equal(await page.locator('h3.rayon').first().textContent(), 'Fruits et légumes');
 
-  // « J'en ai déjà » : 500 g de farine → il manque 306,7 g.
+  // « J'en ai déjà » : 500 g de farine → il manque 307 g.
   await article('Farine').locator('.art-corps').click();
   assert.match(await article('Farine').locator('.art-detail').textContent(), /Tarte tatin.*Cinnamon rolls/s);
   await article('Farine').locator('.art-dispo input').fill('500');
   await article('Farine').locator('.art-dispo input').press('Enter');
   await page.locator('.art-dispo input').blur();
-  assert.match(await article('Farine').locator('.art-qte small').textContent(), /il manque 306,7 g/);
+  assert.match(await article('Farine').locator('.art-qte small').textContent(), /il manque 307 g/);
 
   // Cocher : l'article passe en bas, barré ; tout survit à un rechargement.
   await article('Lait').locator('.art-case').click();
@@ -499,14 +499,14 @@ test('courses : recettes prévues, liste additionnée par rayon, cases et « j\'
   await page.reload();
   await page.locator('.article').first().waitFor();
   assert.match(await article('Lait').getAttribute('class'), /fait/);
-  assert.match(await article('Farine').locator('.art-qte small').textContent(), /il manque 306,7 g/);
+  assert.match(await article('Farine').locator('.art-qte small').textContent(), /il manque 307 g/);
 
   // Changer le nombre de personnes recalcule ; retirer une recette l'enlève de la liste.
   await page.locator('.prevue', { hasText: 'Tarte tatin' }).locator('[data-d="-1"]').click();
-  assert.match(await article('Farine').locator('.art-qte').textContent(), /^773,4 g/);
+  assert.match(await article('Farine').locator('.art-qte').textContent(), /^774 g/);
   await page.locator('.prevue', { hasText: 'Cinnamon rolls' }).locator('.pv-retirer').click();
   assert.equal(await article('Lait').count(), 0);
-  assert.match(await article('Farine').locator('.art-qte').textContent(), /^233,4 g$|^233,4 g/);
+  assert.match(await article('Farine').locator('.art-qte').textContent(), /^234 g/);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
@@ -1419,6 +1419,16 @@ for (const sombre of [true, false]) test(`mode ${sombre ? 'sombre' : 'clair'} : 
   assert.equal((await couleurs('body')).fond, sombre ? 'rgb(28, 23, 18)' : 'rgb(246, 240, 230)');
   assert.equal((await couleurs('.carte')).fond, sombre ? 'rgb(39, 32, 26)' : 'rgb(255, 251, 244)');
   assert.equal(await page.getAttribute('meta[name=theme-color]', 'content'), sombre ? '#1C1712' : '#F6F0E6', 'barre du téléphone');
+  // Pastille avec un lien (« Bon appétit ! · Noter dans le carnet ») : le lien se lit sur le fond de la pastille.
+  const contrastePastille = await page.evaluate(async () => {
+    (await import('./js/ui.js')).toast('Bon appétit !', 5000, { texte: 'Noter dans le carnet', faire() {} });
+    const rgb = c => c.match(/[\d.]+/g).map(Number);
+    const lum = ([r, g, b]) => [r, g, b].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+      .reduce((t, v, i) => t + v * [0.2126, 0.7152, 0.0722][i], 0);
+    const [a, b] = [lum(rgb(getComputedStyle(document.querySelector('.toast-action')).color)), lum(rgb(getComputedStyle(document.querySelector('.toast')).backgroundColor))];
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  });
+  assert.ok(contrastePastille >= 4.5, `lien de la pastille : contraste ${contrastePastille.toFixed(1)}`);
   // Contraste du texte sur son fond, sur chaque écran (≥ 4,5:1, 3:1 pour les gros titres).
   const ecrans = ['#/', '#/recette/tarte-tatin', '#/courses', '#/reglages', '#/cuisine/tarte-tatin', '#/modifier/tarte-tatin'];
   for (const ecran of ecrans) {
@@ -1516,6 +1526,23 @@ test('moule : saisi dans « Modifier », quantités adaptées à mon moule sur l
   await page.click('[data-mode=personnes]');
   assert.equal(await qte(), '200 g');
   assert.equal(await page.locator('.moule-carte').count(), 0);
+
+  // Équivalent en personnes, et liste de courses aux quantités exactes du moule.
+  await page.click('[data-mode=moule]');
+  assert.match(await page.textContent('#facteur-moule'), /Quantités × 1,36 \(surface du moule\), soit ≈ 8 personnes/);
+  await page.click('#aux-courses');
+  assert.match(await page.textContent('.toast'), /Ajoutée aux courses \(moule rond 28 cm\)/);
+  await page.goto(BASE + '#/courses');
+  await page.locator('.prevue').waitFor();
+  assert.equal(await page.textContent('.pv-moule'), 'Moule rond 28 cm');
+  assert.equal(await page.textContent('.prevue .stepper b'), '≈8');
+  const articles = await page.locator('.article').evaluateAll(as => as.map(a => a.textContent.replace(/\s+/g, ' ').trim()));
+  assert.ok(articles.includes('Farine 273 g'), `200 g × 1,36 arrondi au-dessus (et non 267 g pour 8 personnes) : ${articles}`);
+  assert.ok(articles.includes('Pommes Golden 8¼'), 'jamais arrondi vers le bas');
+  // + : on repasse en nombre de personnes.
+  await page.click('.prevue [data-d="1"]');
+  assert.equal(await page.textContent('.prevue .stepper b'), '9');
+  assert.equal(await page.locator('.pv-moule').count(), 0);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
@@ -1583,10 +1610,17 @@ test('carnet : ajouter une note (avis, moule, four), la retrouver, la supprimer 
   await page.click('#suiv');
   await page.locator('.toast .toast-action').waitFor();
   assert.match(await page.textContent('.toast'), /Bon appétit/);
+  // Le message garde sa largeur à côté du bouton (pas un mot par ligne).
+  const hauteurs = await page.evaluate(() => [document.querySelector('.toast-texte').offsetHeight, parseFloat(getComputedStyle(document.querySelector('.toast-texte')).lineHeight) || 20]);
+  assert.ok(hauteurs[0] < hauteurs[1] * 1.6, `« Bon appétit ! » sur une ligne (${hauteurs})`);
   await page.click('.toast-action');
   await page.waitForURL(/#\/recette\/cinnamon-rolls$/);
   await page.locator('#carnet-form').waitFor();
   assert.equal(await ongletActif(), 'Notes');
+  // On arrive directement sur le carnet, pas en haut de la recette.
+  await page.waitForTimeout(200);
+  const haut = await page.locator('#carnet').evaluate(e => e.getBoundingClientRect().top);
+  assert.ok(await page.evaluate(() => window.scrollY) > 300 && haut >= -1 && haut < 120, `carnet en haut de l'écran (${haut})`);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

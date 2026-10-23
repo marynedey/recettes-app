@@ -118,7 +118,12 @@ let toastTimer;
 export function toast(msg, ms = 2800, action = null) {
   let el = document.querySelector('.toast');
   if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
-  el.textContent = msg;
+  // Le message dans son propre élément : à côté du bouton, il garde sa largeur au lieu de passer à un mot par ligne.
+  el.textContent = '';
+  const texte = document.createElement('span');
+  texte.className = 'toast-texte';
+  texte.textContent = msg;
+  el.append(texte);
   el.classList.toggle('avec-action', !!action);
   if (action) {
     // Lien (« Voir la liste ») ou bouton (« Annuler »).
@@ -127,7 +132,7 @@ export function toast(msg, ms = 2800, action = null) {
     if (action.href) a.href = action.href;
     a.textContent = action.texte;
     a.addEventListener('click', () => { el.classList.remove('visible'); action.faire?.(); });
-    el.append(' ', a);
+    el.append(a);
   }
   requestAnimationFrame(() => el.classList.add('visible'));
   clearTimeout(toastTimer);
