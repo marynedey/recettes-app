@@ -113,7 +113,7 @@ export function cuisine(root, { params, query }) {
         }).join('')}</div>` : ''}
       ${timers.length ? `
         ${timers.length > 1 ? `<div class="choix-durees">${timers.map((t, k) => `<button data-k="${k}" aria-pressed="${k === choixDuree}"
-          class="${M.obtenir(M.idMinuteur(r.slug, i, k)) ? 'a-minuteur' : ''}">${esc(t.texte)}</button>`).join('')}</div>` : ''}
+          class="${M.obtenir(M.idMinuteur(r.slug, i, k)) ? 'a-minuteur' : ''}">${t.nom ? `<b>${esc(t.nom)}</b> · ` : ''}${esc(t.texte)}</button>`).join('')}</div>` : ''}
         <div class="minuteur" id="minuteur">
           <div class="anneau"><svg viewBox="0 0 100 100"><circle class="fond-anneau" cx="50" cy="50" r="44"/><circle class="val" cx="50" cy="50" r="44" pathLength="100" stroke-dasharray="100"/></svg>
             <div class="centre"><span class="temps" id="t-bloc"></span><span class="lib" id="lib"></span></div></div>
@@ -218,7 +218,9 @@ export function cuisine(root, { params, query }) {
   };
   boutonVoix?.addEventListener('click', () => basculerVoix(!voix));
 
+  // Nom du minuteur (« Fouetter encore · 1 minute ») : le verbe devant la durée (format.js), sinon un mot-clé de l'étape.
   function libelle(s, t) {
+    if (t.nom) return `${t.nom} · ${t.texte}`;
     const m = s.texte.match(/(cuisson|cuire|four|repos|reposer|lev[ée]e|pétrir|mijoter|frémir|feu \w+)/i);
     return m ? `${m[1][0].toUpperCase()}${m[1].slice(1)} · ${t.texte}` : t.texte;
   }

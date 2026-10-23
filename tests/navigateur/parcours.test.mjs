@@ -1756,3 +1756,21 @@ test('avec ce que j\'ai : chercher sur internet, puis importer le lien collé', 
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
+
+test('mode cuisine : plusieurs durées dans une étape, chacune nommée (bouton, minuteur, notification)', async () => {
+  depotInitial();
+  fichiers.set('recettes/carrot-cake.md', Buffer.from(`---\ntitre: Carrot cake\nportions: 8\n---\n## Ingrédients\n- 250 g farine\n\n## Étapes\n1. Ajouter la cannelle, fouetter vitesse moyenne 1 minute. Ajouter la farine. Fouetter encore en vitesse moyenne 1 minute. Enfin ajouter l'huile. Fouetter encore 1 minute vitesse moyenne.\n`));
+  await nouvellePage({ horloge: true });
+  await page.goto(BASE + '#/cuisine/carrot-cake');
+  await page.locator('.choix-durees').waitFor();
+  assert.deepEqual(await page.locator('.choix-durees button').allTextContents(),
+    ['Fouetter · 1 minute', 'Fouetter encore · 1 minute', 'Fouetter encore (2) · 1 minute']);
+  assert.equal(await page.textContent('#lib'), 'Fouetter · 1 minute');
+  await page.click('.choix-durees button >> nth=2');
+  assert.equal(await page.textContent('#lib'), 'Fouetter encore (2) · 1 minute');
+  await page.click('#m-lecture');
+  assert.match(await page.textContent('.minuteurs-autres'), /Fouetter encore \(2\) · 1 minute/);
+  await sansDebordement('mode cuisine, durées nommées');
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
