@@ -37,7 +37,10 @@ export function cuisine(root, { params, query }) {
   root.className = 'cuisine';
   root.innerHTML = `
     <div class="cuisine-tete">
-      <button class="btn-rond" id="fermer" aria-label="Quitter le mode cuisine">${icon('x')}</button>
+      <div class="cuisine-boutons">
+        <button class="btn-rond" id="fermer" aria-label="Quitter le mode cuisine">${icon('x')}</button>
+        <button class="btn-rond" id="recommencer" aria-label="Recommencer la recette">${icon('reset')}</button>
+      </div>
       <span class="badge-veille off" id="veille">${icon('sun')}<span>Écran normal</span></span>
     </div>
     <div class="progression"><div id="barre"></div></div>
@@ -183,9 +186,11 @@ export function cuisine(root, { params, query }) {
   const aller = d => {
     if (i + d >= steps.length) {
       const restants = M.deRecette(r.slug).filter(m => !m.fini).length;
-      if (restants && !confirm(`${restants > 1 ? `${restants} minuteurs sont` : 'Un minuteur est'} encore en cours. Terminer la recette et ${restants > 1 ? 'les' : 'l\''}arrêter ?`)) return;
+      if (restants && !confirm(`${restants > 1 ? `${restants} minuteurs sont` : 'Un minuteur est'} encore en cours. Terminer la recette et ${restants > 1 ? 'les ' : 'l\''}arrêter ?`)) return;
       M.arreterRecette(r.slug); // minuteurs et notifications de la recette effacés
       sessionStorage.removeItem(cle);
+      // Depuis la fiche, « retour » mènera à l'accueil et non à nouveau au mode cuisine (cf. app.js).
+      sessionStorage.setItem('mr.apresCuisine', `#/recette/${encodeURIComponent(r.slug)}`);
       quitter();
       return;
     }
@@ -204,6 +209,16 @@ export function cuisine(root, { params, query }) {
 
   root.querySelector('#prec').onclick = () => aller(-1);
   root.querySelector('#suiv').onclick = () => aller(1);
+  root.querySelector('#recommencer').onclick = () => {
+    if (!confirm('Recommencer la recette depuis l\'étape 1 ? Les minuteurs de cette recette seront arrêtés.')) return;
+    M.arreterRecette(r.slug);
+    sessionStorage.removeItem(cle);
+    allerA(0);
+    toast('Recette recommencée');
+  };
+  // Notification touchée alors que ce mode cuisine est déjà ouvert : on va à l'étape, sans rouvrir la page.
+  const surEtape = e => { if (e.detail.slug === r.slug) allerA(e.detail.etape); };
+  window.addEventListener('mr:etape', surEtape);
   root.querySelector('#fermer').onclick = () => {
     const n = M.deRecette(r.slug).filter(M.enCours).length;
     if (n) toast(`${n > 1 ? `${n} minuteurs continuent` : 'Le minuteur continue'} (notification et retour en mode cuisine).`, 4000);
@@ -237,6 +252,7 @@ export function cuisine(root, { params, query }) {
     document.removeEventListener('visibilitychange', surVisibilite);
     document.removeEventListener('keydown', clavier);
     window.removeEventListener('popstate', surRetour);
+    window.removeEventListener('mr:etape', surEtape);
     verrou?.release().catch(() => {});
     verrou = null;
   };

@@ -91,6 +91,10 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 
 /* ---------- sections & grille ---------- */
 .section-tete { display: flex; align-items: baseline; justify-content: space-between; margin: 26px 0 12px; }
+.tri { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }
+.tri svg.i { width: 18px; height: 18px; }
+.tri select { border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 15px; padding: 4px 0; }
+.section-tete h2 .aide { font-family: var(--sans); font-size: 14px; font-weight: 400; margin-left: 6px; }
 .section-tete h2 { font-size: 20px; font-weight: 600; }
 .lien { color: var(--accent); font-weight: 500; font-size: 15px; text-decoration: none; }
 .grille { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -254,6 +258,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 
 /* ---------- mode cuisine ---------- */
 .cuisine { min-height: 100dvh; display: flex; flex-direction: column; padding: calc(var(--haut) + 16px) 20px calc(var(--bas) + 110px); }
+.cuisine-boutons { display: flex; gap: 10px; }
 .cuisine-tete { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .badge-veille { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: var(--pastel); color: var(--brun); font-size: 14px; font-weight: 500; }
 .badge-veille.off { background: var(--doux); color: var(--gris); }
@@ -404,6 +409,10 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .art-detail ul { margin: 0 0 10px; padding-left: 16px; }
 .art-dispo { display: flex; align-items: center; gap: 8px; color: var(--encre); font-weight: 500; }
 .art-dispo input { width: 90px; border: 1px solid var(--bordure); border-radius: 10px; padding: 8px 10px; background: var(--fond); font-size: 16px; }
+.ajout-article { display: flex; gap: 8px; margin-bottom: 4px; }
+.ajout-article input { flex: 1; min-width: 0; height: 48px; padding: 0 14px; border: 1px solid var(--bordure); border-radius: 14px; background: var(--carte); font-size: 16px; }
+.ajout-article .btn-rond { width: 48px; height: 48px; background: var(--accent); color: #fff; border: 0; }
+.art-detail .lien { font-size: 13px; margin-left: 6px; }
 .actions-courses { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; }
 .actions-courses .bouton { flex: 1; }
 .feuille-fond { position: fixed; inset: 0; z-index: 55; background: rgba(43, 33, 24, .45); display: flex; align-items: flex-end; justify-content: center; }
@@ -434,6 +443,9 @@ body.sans-defilement { overflow: hidden; }
   max-width: calc(100% - 40px); opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
 }
 .toast.visible { opacity: 1; transform: translate(-50%, 0); }
+.toast.avec-action.visible { pointer-events: auto; } 
+.toast.avec-action { display: flex; align-items: center; gap: 14px; }
+.toast-action { color: var(--minuteur); font-weight: 600; text-decoration: none; white-space: nowrap; }
 
 @media (min-width: 600px) {
   .grille { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -441,3 +453,13 @@ body.sans-defilement { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+.page.sur-lien .barre-bas { display: none; }
+/* Glisser un article pour le retirer : fond rouge révélé derrière la ligne. */
+.article { position: relative; }
+.art-ligne { position: relative; z-index: 1; background: var(--carte); touch-action: pan-y; }
+.article.glisse::before {
+  content: 'Retirer'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 18px; background: #A3341A; color: #fff; font-weight: 600; font-size: 14px;
+}
+.article.glisse::after { content: 'Retirer'; position: absolute; top: 0; bottom: 0; right: 18px; display: flex; align-items: center; color: #fff; font-weight: 600; font-size: 14px; }
+button.toast-action { background: none; border: 0; padding: 0; font: inherit; }
