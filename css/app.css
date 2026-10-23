@@ -256,6 +256,9 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .bouton.large { width: 100%; }
 .bouton[disabled] { opacity: .55; }
 .bouton svg.i { width: 18px; height: 18px; }
+/* Rond de chargement dans un bouton : à la place (et à la taille) de l'icône, blanc sur l'orange. */
+.bouton .spinner { width: 18px; height: 18px; border-color: rgba(255, 255, 255, .35); border-top-color: #fff; }
+.bouton.secondaire .spinner { border-color: rgba(201, 72, 10, .25); border-top-color: var(--accent); }
 
 /* ---------- fiche recette ---------- */
 .fiche-hero { height: 42vh; min-height: 260px; max-height: 420px; position: relative; }
@@ -483,8 +486,9 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .reglage[open] summary > svg.i:last-child { transform: rotate(90deg); }
 .reglage-corps { padding: 2px 16px 16px; }
 .reglage-corps > .aide, .reglage-corps form > .aide { margin: 0 0 14px; }
-.segments.trois { margin: 0 0 12px; }
-.segments.trois button { height: auto; min-height: 42px; padding: 4px 6px; }
+/* Chaque case prend la largeur de son mot (« Automatique » plus large) ; texte très grand : passage à la ligne. */
+.segments.trois { display: flex; flex-wrap: wrap; gap: 2px; margin: 0 0 12px; }
+.segments.trois button { flex: 1 1 auto; height: auto; min-height: 42px; padding: 4px 12px; }
 .actions-ligne { display: flex; gap: 10px; flex-wrap: wrap; }
 @media (prefers-reduced-motion: reduce) { .reglage summary > svg.i:last-child { transition: none; } }
 .carte-bloc { background: var(--carte); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 18px; margin-top: 16px; }

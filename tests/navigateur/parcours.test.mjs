@@ -302,8 +302,9 @@ async function sansDebordement(nom) {
   });
   assert.deepEqual(depassent, [], `${nom} : éléments plus larges que l'écran`);
   // Texte d'un bouton qui ne tient plus dedans (il passe à la ligne et déborde en hauteur).
+  // (ou qui sort sur le côté, comme « Automatique » dans les réglages).
   const coupes = await page.evaluate(() => [...document.querySelectorAll('.bouton, button')]
-    .filter(b => b.offsetParent && b.scrollHeight > b.clientHeight + 2)
+    .filter(b => b.offsetParent && (b.scrollHeight > b.clientHeight + 2 || b.scrollWidth > b.clientWidth + 2))
     .map(b => b.textContent.trim().slice(0, 30)));
   assert.deepEqual(coupes, [], `${nom} : texte qui déborde d'un bouton`);
 }
@@ -1270,6 +1271,15 @@ test('écrans : toujours ouverts en haut, la position n\'est retrouvée qu\'au r
   assert.equal(await page.evaluate(() => window.scrollY), y, 'retour arrière : position retrouvée');
   await page.goto(BASE + '#/reglages');
   assert.equal(await page.evaluate(() => window.scrollY), 0, 'réglages rouverts en haut');
+  // Écran quitté juste après avoir défilé (avant que l'événement « scroll » n'arrive) : position gardée quand même.
+  await page.goBack();
+  await page.waitForTimeout(200);
+  const y2 = await page.evaluate(() => { window.scrollTo(0, 60); const v = window.scrollY; location.hash = '#/reglages'; return v; });
+  assert.ok(y2 > 0);
+  await page.waitForURL(/#\/reglages$/);
+  await page.goBack();
+  await page.waitForTimeout(200);
+  assert.equal(await page.evaluate(() => window.scrollY), y2, 'position gardée même en partant aussitôt');
 
   // Le niveau n'apparaît plus, et disparaît du fichier à l'enregistrement.
   await page.goto(BASE + '#/recette/risotto-aux-champignons');
@@ -1875,6 +1885,29 @@ test('réglages : rubriques repliées avec résumé, apparence au choix (automat
 
   await page.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; }));
   await sansDebordement('réglages dépliés');
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('modifier : pendant l\'enregistrement, le bouton garde son texte et ne déborde pas (texte agrandi)', async () => {
+  depotInitial();
+  await nouvellePage();
+  // GitHub qui répond lentement : on regarde le bouton pendant l'envoi.
+  let liberer;
+  const attente = new Promise(ok => { liberer = ok; });
+  await ctx.route('https://api.github.com/**/contents/recettes/**', async route => {
+    if (route.request().method() === 'PUT') await attente;
+    return fauxGitHub(route);
+  });
+  await page.goto(BASE + '#/modifier/tarte-tatin');
+  await page.locator('#form').waitFor();
+  await page.click('#enreg');
+  await page.locator('#enreg .spinner').waitFor();
+  assert.equal((await page.textContent('#enreg')).trim(), 'Enregistrer');
+  assert.ok(await page.locator('#enreg').isDisabled());
+  await sansDebordement('modifier, enregistrement en cours');
+  liberer();
+  await page.waitForURL(/#\/recette\/tarte-tatin$/);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
