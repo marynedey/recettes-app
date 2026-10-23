@@ -45,32 +45,30 @@
   color-scheme: light;
 }
 
-/* Mode sombre : suit le réglage du téléphone. Mêmes teintes chaudes, contrastes vérifiés
-   (texte ≥ 4,5:1 ; boutons orange : texte blanc sur #C9480A, 4,8:1). */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fond: #1C1712;
-    --carte: #27201A;
-    --encre: #F3EBE0;
-    --gris: #B3A493;
-    --bordure: #3D332A;
-    --accent-texte: #F2944F;
-    --accent-fonce: #E0651F;
-    --doux: #3D2A1C;
-    --pastel: #33261C;
-    --brun: #F5B98A;
-    --vert: #93C48B;
-    --alerte-fond: #4A2A20;
-    --alerte-texte: #F7B096;
-    --ok-fond: #22331F;
-    --ok-texte: #A8D29F;
-    --danger: #F08A6E;
-    --danger-bord: #5A3328;
-    --sonne: #4A2E1A;
-    --voile: rgba(39, 32, 26, .92);
-    --fond-0: rgba(28, 23, 18, 0);
-    color-scheme: dark;
-  }
+/* Mode sombre : « data-theme » posé par js/theme.js (suit le téléphone, ou choisi dans les réglages).
+   Mêmes teintes chaudes, contrastes vérifiés (texte ≥ 4,5:1 ; boutons orange : texte blanc sur #C9480A, 4,8:1). */
+:root[data-theme="sombre"] {
+  --fond: #1C1712;
+  --carte: #27201A;
+  --encre: #F3EBE0;
+  --gris: #B3A493;
+  --bordure: #3D332A;
+  --accent-texte: #F2944F;
+  --accent-fonce: #E0651F;
+  --doux: #3D2A1C;
+  --pastel: #33261C;
+  --brun: #F5B98A;
+  --vert: #93C48B;
+  --alerte-fond: #4A2A20;
+  --alerte-texte: #F7B096;
+  --ok-fond: #22331F;
+  --ok-texte: #A8D29F;
+  --danger: #F08A6E;
+  --danger-bord: #5A3328;
+  --sonne: #4A2E1A;
+  --voile: rgba(39, 32, 26, .92);
+  --fond-0: rgba(28, 23, 18, 0);
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -469,6 +467,23 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .photo-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .photo-btns label { cursor: pointer; }
 .photo-btns input { display: none; }
+/* Réglages : rubriques repliables (une ligne + flèche, le détail se déroule) */
+.reglages { display: flex; flex-direction: column; gap: 10px; }
+.reglage { background: var(--carte); border: 1px solid var(--bordure); border-radius: var(--rayon); }
+.reglage summary { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 10px 16px; cursor: pointer; list-style: none; }
+.reglage summary::-webkit-details-marker { display: none; }
+.reglage summary > svg.i:first-child { width: 22px; height: 22px; color: var(--accent-texte); flex: none; }
+.reglage summary > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.reglage summary b { font-weight: 600; font-size: 16px; }
+.reglage .resume { color: var(--gris); font-size: 14px; overflow-wrap: anywhere; }
+.reglage summary > svg.i:last-child { width: 18px; height: 18px; color: var(--gris); flex: none; transition: transform .2s; }
+.reglage[open] summary > svg.i:last-child { transform: rotate(90deg); }
+.reglage-corps { padding: 2px 16px 16px; }
+.reglage-corps > .aide, .reglage-corps form > .aide { margin: 0 0 14px; }
+.segments.trois { margin: 0 0 12px; }
+.segments.trois button { height: auto; min-height: 42px; padding: 4px 6px; }
+.actions-ligne { display: flex; gap: 10px; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { .reglage summary > svg.i:last-child { transition: none; } }
 .carte-bloc { background: var(--carte); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 18px; margin-top: 16px; }
 .carte-bloc h2 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
 .carte-bloc p { margin: 0 0 14px; color: var(--gris); font-size: 15px; }

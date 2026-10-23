@@ -1,8 +1,8 @@
 // Service worker : met l'application en cache pour un usage hors ligne.
 // Les recettes et photos sont gérées par l'app elle-même (localStorage + Cache API).
-const VERSION = 'mr-app-1.19.1'; // = version de l'app (js/views/reglages.js)
+const VERSION = 'mr-app-1.20.0'; // = version de l'app (js/views/reglages.js)
 const FICHIERS = [
-  './', 'index.html', 'manifest.webmanifest', 'css/app.css',
+  './', 'index.html', 'js/theme.js', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/courses.js', 'js/format.js', 'js/frigo.js', 'js/github.js', 'js/minuteurs.js', 'js/voix.js', 'js/push.js', 'js/store.js', 'js/ui.js',
   'js/views/listes.js', 'js/views/courses.js', 'js/views/fiche.js', 'js/views/cuisine.js', 'js/views/editer.js', 'js/views/reglages.js', 'js/views/frigo.js',
   'fonts/fraunces.woff2', 'fonts/inter.woff2',
