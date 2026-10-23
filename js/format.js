@@ -190,10 +190,33 @@ function pluriel(unit, n) {
 
 /**
  * Vrai si la ligne contient un nombre que l'app ne sait pas recalculer
- * (« Farine : 200 g », « 1 pot yaourt (87 g) ») : à ajuster à la main.
+ * (« Farine : 200 g », « Lait : 50 cL ») : à ajuster à la main.
+ * Ne comptent pas : ce qui est entre parenthèses, une précision (« farine (T45) »,
+ * « 1 sachet levure (11 g) », « 250 g carottes (4 petites) »), ni un chiffre collé
+ * à une lettre (« farine T55 »).
  */
 export function nonRecalcule(ing) {
-  return ing.qty == null ? /\d/.test(ing.raw) : /\d/.test(ing.name);
+  const texte = (ing.qty == null ? ing.raw : ing.name).replace(/\([^)]*\)/g, '');
+  return /(^|[^\p{L}\d])\d/u.test(texte);
+}
+
+// Unités qui mesurent la quantité elle-même : ce qui est entre parenthèses en est une autre écriture.
+const MESURES = new Set(['g', 'kg', 'mg', 'L', 'dL', 'cL', 'mL', 'c. à soupe', 'c. à café', 'pincée']);
+const UNITE_NOMBRE = { g: 'g', kg: 'kg', mg: 'mg', ml: 'mL', cl: 'cL', dl: 'dL', l: 'L' };
+
+/**
+ * Nom de l'ingrédient pour un facteur donné : les nombres entre parenthèses suivent quand ce sont
+ * des équivalences (« 8 g levure fraîche (ou 3 g de levure sèche) », « 250 g carottes (4 petites) »,
+ * « (environ 2 citrons) »), pas le contenu d'un contenant (« 1 sachet levure (11 g) » : par sachet).
+ */
+export function nomIngredient(ing, factor = 1) {
+  if (ing.qty == null) return ing.raw;
+  if (factor === 1) return ing.name;
+  return ing.name.replace(/\(([^)]*)\)/g, (tout, dedans) => {
+    if (!MESURES.has(ing.unit) && !/^\s*(ou|environ|env\.|soit|~)/i.test(dedans)) return tout;
+    return `(${dedans.replace(/(^|[^\p{L}\d])(\d+(?:[.,]\d+)?)(\s*)(kg|mg|g|ml|cl|dl|l)?(?![\p{L}\d])/giu,
+      (m, avant, n, esp, u) => `${avant}${formatNumber(parseFloat(n.replace(',', '.')) * factor, UNITE_NOMBRE[(u || '').toLowerCase()] || '')}${esp}${u || ''}`)})`;
+  });
 }
 
 /** Quantité formatée (« 200 g », « 1½ c. à soupe ») pour un facteur donné. */

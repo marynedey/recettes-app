@@ -61,7 +61,7 @@ ajoutee: 2026-10-22
 ## Carnet                  (facultatif, écrit depuis l'onglet Notes de la fiche ; la plus récente en premier)
 - 2026-10-12 · Réussi · moule rond 28 cm · four 170 °C · 8 pers. : Pousse 1 h 30 près du radiateur.
 ```
-Quantités parsées (nombre + unité + nom) pour le recalcul selon le nombre de personnes.
+Quantités parsées (nombre + unité + nom) pour le recalcul selon le nombre de personnes. Entre parenthèses : précision, jamais signalée « à ajuster » (« farine (T45) », « 1 sachet (11 g) ») ; ses nombres sont recalculés quand c'est une équivalence (« (ou 3 g de levure sèche) », « (environ 2 citrons) », ou après un poids/volume : « 250 g carottes (4 petites) »), pas le contenu d'un sachet/pot (`nomIngredient`). « À ajuster » = nombre ailleurs qu'en début de ligne (« Lait : 50 cL »).
 
 ## Import par lien (gratuit, sans IA)
 1. l'app crée `import/a-traiter/<id>.json` (`{ "url": … }`) dans `mes-recettes` ;
