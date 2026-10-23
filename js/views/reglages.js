@@ -2,9 +2,10 @@
 
 import * as store from '../store.js';
 import { GitHub } from '../github.js';
+import * as push from '../push.js';
 import { esc, icon, retour, toast } from '../ui.js';
 
-export const VERSION = '1.8.0';
+export const VERSION = '1.9.0';
 
 export function reglagesVue(root) {
   const r = store.reglages();
@@ -33,6 +34,16 @@ export function reglagesVue(root) {
         <div id="etat"></div>
       </div>
     </form>
+    <div class="carte-bloc">
+      <h2>Minuteurs, app fermée</h2>
+      <p>Avec le serveur des minuteurs, la fin d'un minuteur sonne même quand l'app est fermée. Il ne reçoit que l'heure de fin, rien sur vos recettes.</p>
+      <form id="f-serveur">
+        <label class="champ"><span>Adresse du serveur (facultatif)</span>
+          <input name="serveur" type="url" inputmode="url" value="${esc(r.serveur || '')}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://mes-recettes-minuteurs.….workers.dev"></label>
+        <button class="bouton secondaire large" id="tester-serveur">${icon('clock')}Enregistrer et tester</button>
+      </form>
+      <div id="etat-serveur"></div>
+    </div>
     <div class="carte-bloc">
       <h2>Données</h2>
       <p>${store.recettes().length} recette(s) sur ce téléphone${sync ? ` · synchronisées ${new Date(sync).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}.</p>
@@ -75,6 +86,23 @@ export function reglagesVue(root) {
       window.dispatchEvent(new Event('mr:imports'));
     } catch (err) {
       afficherEtat('ko', esc(err.message));
+    }
+  });
+
+  const etatServeur = root.querySelector('#etat-serveur');
+  root.querySelector('#f-serveur').addEventListener('submit', async e => {
+    e.preventDefault();
+    const serveur = e.target.serveur.value.trim().replace(/\/+$/, '');
+    const afficher = (cls, html) => { etatServeur.className = `etat ${cls}`; etatServeur.innerHTML = html; };
+    if (serveur && !/^https:\/\/[^/\s]+$/.test(serveur)) { afficher('ko', 'L\'adresse doit commencer par <b>https://</b> (par exemple https://mes-recettes-minuteurs.nom.workers.dev).'); return; }
+    store.enregistrerReglages({ serveur });
+    if (!serveur) { afficher('', 'Serveur désactivé : les minuteurs ne sonnent que l\'app ouverte.'); return; }
+    afficher('', '<span class="spinner" style="display:inline-block;vertical-align:middle"></span> Connexion…');
+    try {
+      await push.tester();
+      afficher('ok', 'Serveur prêt. Pour vérifier : fermez l\'app, une notification « Minuteur terminé » doit arriver dans 10 secondes.');
+    } catch (err) {
+      afficher('ko', esc(err.message === 'Failed to fetch' ? 'Serveur injoignable : vérifiez l\'adresse.' : err.message));
     }
   });
 

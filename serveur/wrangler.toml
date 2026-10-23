@@ -1,0 +1,22 @@
+# Petit serveur des minuteurs (Cloudflare Workers, offre gratuite).
+# Déployé automatiquement par .github/workflows/serveur.yml à chaque changement dans serveur/ sur main.
+name = "mes-recettes-minuteurs"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+workers_dev = true
+
+[vars]
+# Seule l'app publiée peut l'appeler depuis un navigateur.
+ORIGINES = "https://marynedey.github.io"
+
+[[durable_objects.bindings]]
+name = "MINUTEUR"
+class_name = "Minuteur"
+
+[[durable_objects.bindings]]
+name = "CLES"
+class_name = "Cles"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Minuteur", "Cles"]

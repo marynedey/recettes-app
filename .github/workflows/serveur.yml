@@ -1,0 +1,40 @@
+# Déploie le serveur des minuteurs (dossier serveur/) sur Cloudflare Workers.
+# Nécessite deux secrets du dépôt : CLOUDFLARE_API_TOKEN et CLOUDFLARE_ACCOUNT_ID
+# (voir serveur/LISEZMOI.md).
+name: Serveur des minuteurs
+
+on:
+  push:
+    branches: [main]
+    paths: ['serveur/**', '.github/workflows/serveur.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: serveur
+  cancel-in-progress: false
+
+jobs:
+  deployer:
+    name: Déployer sur Cloudflare
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secrets présents ?
+        env:
+          JETON: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          COMPTE: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$JETON" ] || [ -z "$COMPTE" ]; then
+            echo "::error::Ajouter les secrets CLOUDFLARE_API_TOKEN et CLOUDFLARE_ACCOUNT_ID (Settings → Secrets and variables → Actions). Voir serveur/LISEZMOI.md."
+            exit 1
+          fi
+      - name: Déployer
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: serveur
+          wranglerVersion: '4.152.0'
