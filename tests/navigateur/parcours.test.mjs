@@ -98,6 +98,11 @@ async function nouvellePage({ configure = true, horloge = false, avant = null, s
   }
 }
 
+// Réglages : déroule une rubrique (si elle ne l'est pas déjà).
+const ouvrirReglage = async id => {
+  await page.locator(`#${id}`).waitFor({ state: 'attached' });
+  if (!(await page.$eval(`#${id}`, d => d.open))) await page.click(`#${id} > summary`);
+};
 const ongletActif = () => page.textContent('[role=tab][aria-selected=true]');
 const etape = () => page.textContent('.etape-label');
 
@@ -886,10 +891,11 @@ test('réglages : erreurs claires, version affichée, app non configurée', asyn
   await page.waitForURL(/#\/$/);
 
   await page.goto(BASE + '#/reglages');
-  await page.locator('#f-serveur').waitFor();
+  await page.locator('#f-serveur').waitFor({ state: 'attached' });
   const version = readFileSync(join(RACINE, 'js/views/reglages.js'), 'utf8').match(/VERSION = '([\d.]+)'/)[1];
   assert.match(await page.textContent('.page'), new RegExp(`version ${version.replace(/\./g, '\\.')}`));
 
+  await ouvrirReglage('r-github');
   await page.fill('[name=jeton]', JETON);
   await page.fill('[name=depot]', 'mes-recettes');
   await page.click('#tester');
@@ -952,6 +958,7 @@ test('serveur des minuteurs : réglage, minuteurs planifiés et annulés, notifi
 
   // Réglages : adresse invalide, puis la bonne ; une notification d'essai est planifiée.
   await page.goto(BASE + '#/reglages');
+  await ouvrirReglage('r-minuteurs');
   await page.fill('[name=serveur]', 'http://minuteurs.test');
   await page.click('#tester-serveur');
   assert.match(await page.textContent('#etat-serveur'), /https:\/\//);
@@ -1411,12 +1418,13 @@ for (const sombre of [true, false]) test(`mode ${sombre ? 'sombre' : 'clair'} : 
   const couleurs = sel => page.evaluate(s => { const c = getComputedStyle(document.querySelector(s)); return { fond: c.backgroundColor, texte: c.color }; }, sel);
   assert.equal((await couleurs('body')).fond, sombre ? 'rgb(28, 23, 18)' : 'rgb(246, 240, 230)');
   assert.equal((await couleurs('.carte')).fond, sombre ? 'rgb(39, 32, 26)' : 'rgb(255, 251, 244)');
-  assert.equal(await page.getAttribute('meta[name=theme-color][media*=dark]', 'content'), '#1C1712');
+  assert.equal(await page.getAttribute('meta[name=theme-color]', 'content'), sombre ? '#1C1712' : '#F6F0E6', 'barre du téléphone');
   // Contraste du texte sur son fond, sur chaque écran (≥ 4,5:1, 3:1 pour les gros titres).
   const ecrans = ['#/', '#/recette/tarte-tatin', '#/courses', '#/reglages', '#/cuisine/tarte-tatin', '#/modifier/tarte-tatin'];
   for (const ecran of ecrans) {
     await page.goto(BASE + ecran);
     await page.waitForTimeout(400);
+    await page.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; })); // réglages dépliés
     const faibles = await page.evaluate(() => {
       const rgb = c => (c.match(/[\d.]+/g) || []).map(Number);
       const lum = ([r, g, b]) => [r, g, b].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
@@ -1771,6 +1779,59 @@ test('mode cuisine : plusieurs durées dans une étape, chacune nommée (bouton,
   await page.click('#m-lecture');
   assert.match(await page.textContent('.minuteurs-autres'), /Fouetter encore \(2\) · 1 minute/);
   await sansDebordement('mode cuisine, durées nommées');
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('réglages : rubriques repliées avec résumé, apparence au choix (automatique, clair, sombre)', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/reglages');
+  await page.locator('.reglage').first().waitFor();
+  // Tout est replié (l'app est configurée), une ligne de résumé par rubrique.
+  assert.deepEqual(await page.locator('.reglage').evaluateAll(ds => ds.map(d => d.open)), [false, false, false, false, false]);
+  const resumes = await page.locator('.reglage summary').allTextContents();
+  assert.match(resumes[0], /Vous\s*Test/);
+  assert.match(resumes[1], /Connexion GitHub\s*marynedey\/mes-recettes/);
+  assert.match(resumes[2], /Apparence\s*Automatique/);
+  assert.match(resumes[3], /Minuteurs, app fermée\s*Désactivé/);
+  assert.match(resumes[4], /Données\s*3 recette\(s\)/);
+  assert.ok(await page.locator('[name=jeton]').isHidden(), 'le détail est replié');
+  await page.click('#r-github > summary');
+  assert.ok(await page.locator('[name=jeton]').isVisible());
+
+  // Prénom : enregistré dès qu'on le tape.
+  await ouvrirReglage('r-vous');
+  await page.fill('[name=prenom]', 'Maryne');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('mr.reglages')).prenom), 'Maryne');
+  assert.match(await page.textContent('#r-vous .resume'), /Maryne/);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('mr.reglages')).jeton), JETON, 'le jeton est gardé');
+
+  // Apparence : téléphone en clair, l'app en sombre (et l'inverse), retenu après rechargement.
+  const fond = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  assert.equal(await fond(), 'rgb(246, 240, 230)');
+  await ouvrirReglage('r-apparence');
+  await page.click('[data-theme-choix=sombre]');
+  assert.equal(await fond(), 'rgb(28, 23, 18)');
+  assert.equal(await page.getAttribute('meta[name=theme-color]', 'content'), '#1C1712');
+  assert.match(await page.textContent('#r-apparence .resume'), /Sombre/);
+  await page.reload();
+  await page.locator('.reglage').first().waitFor();
+  assert.equal(await fond(), 'rgb(28, 23, 18)', 'choix retenu');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await ouvrirReglage('r-apparence');
+  await page.click('[data-theme-choix=clair]');
+  assert.equal(await fond(), 'rgb(246, 240, 230)', 'clair même si le téléphone est en sombre');
+  // Automatique : suit le téléphone, y compris quand il change.
+  await page.click('[data-theme-choix=auto]');
+  assert.equal(await fond(), 'rgb(28, 23, 18)');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'clair', null, { timeout: 3000 });
+  assert.equal(await fond(), 'rgb(246, 240, 230)');
+  assert.equal(await page.getAttribute('[data-theme-choix=auto]', 'aria-pressed'), 'true');
+
+  await page.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; }));
+  await sansDebordement('réglages dépliés');
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
