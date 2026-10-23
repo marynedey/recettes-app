@@ -15,7 +15,7 @@
   --fond: #F6F0E6;
   --carte: #FFFBF4;
   --encre: #2B2118;
-  --gris: #8A7B6B;
+  --gris: #736455;          /* texte secondaire : 5:1 sur le fond (l’ancien #8A7B6B ne faisait que 3,6) */
   --bordure: #E7DCCB;
   /* Couleurs tirées de l'icône (orange vif #F07818, profond #E4540C, contour #9C2400). */
   --accent: #C9480A;        /* boutons, liens, texte d'accent : contraste 4,8 avec le blanc */
@@ -26,6 +26,16 @@
   --pastel: #FFF0E0;        /* badges et encadrés clairs */
   --brun: #8A3300;          /* texte sur --pastel */
   --vert: #4E7A4A;
+  --accent-texte: #B03F09;  /* liens et texte en orange : 5,2:1 sur le fond crème (#C9480A n’y fait que 4,2) ; plus clair en mode sombre */
+  --alerte-fond: #F7DED3;   /* bannière d'erreur, minuteur terminé */
+  --alerte-texte: #8E2E14;
+  --ok-fond: #E3ECDD;
+  --ok-texte: #2F5A2B;
+  --danger: #A3341A;
+  --danger-bord: #E8C2B4;
+  --sonne: #FFE2CC;         /* clignotement du minuteur qui sonne */
+  --voile: rgba(255, 251, 244, .92); /* boutons ronds posés sur une photo */
+  --fond-0: var(--fond-0);  /* fond transparent des dégradés de bas d'écran */
   --rayon: 18px;
   --serif: 'Fraunces', 'Lora', Georgia, serif;
   --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -33,6 +43,34 @@
   --haut: env(safe-area-inset-top, 0px);
   --bas: env(safe-area-inset-bottom, 0px);
   color-scheme: light;
+}
+
+/* Mode sombre : suit le réglage du téléphone. Mêmes teintes chaudes, contrastes vérifiés
+   (texte ≥ 4,5:1 ; boutons orange : texte blanc sur #C9480A, 4,8:1). */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fond: #1C1712;
+    --carte: #27201A;
+    --encre: #F3EBE0;
+    --gris: #B3A493;
+    --bordure: #3D332A;
+    --accent-texte: #F2944F;
+    --accent-fonce: #E0651F;
+    --doux: #3D2A1C;
+    --pastel: #33261C;
+    --brun: #F5B98A;
+    --vert: #93C48B;
+    --alerte-fond: #4A2A20;
+    --alerte-texte: #F7B096;
+    --ok-fond: #22331F;
+    --ok-texte: #A8D29F;
+    --danger: #F08A6E;
+    --danger-bord: #5A3328;
+    --sonne: #4A2E1A;
+    --voile: rgba(39, 32, 26, .92);
+    --fond-0: rgba(28, 23, 18, 0);
+    color-scheme: dark;
+  }
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -51,7 +89,7 @@ body {
 }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; background: none; padding: 0; }
-a { color: var(--accent); }
+a { color: var(--accent-texte); }
 h1, h2, h3, .serif { font-family: var(--serif); font-optical-sizing: auto; letter-spacing: -0.01em; margin: 0; }
 svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -70,8 +108,8 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
   width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
   background: var(--carte); border: 1px solid var(--bordure); flex: none;
 }
-.btn-rond.plein { background: rgba(255, 251, 244, .92); border: 0; box-shadow: 0 2px 10px rgba(43, 33, 24, .15); }
-.btn-rond.actif { color: var(--accent); }
+.btn-rond.plein { background: var(--voile); border: 0; box-shadow: 0 2px 10px rgba(43, 33, 24, .15); }
+.btn-rond.actif { color: var(--accent-texte); }
 .btn-rond.actif svg { fill: currentColor; }
 
 /* ---------- recherche & filtres ---------- */
@@ -91,12 +129,12 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 
 /* ---------- sections & grille ---------- */
 .section-tete { display: flex; align-items: baseline; justify-content: space-between; margin: 26px 0 12px; }
-.tri { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }
+.tri { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-texte); }
 .tri svg.i { width: 18px; height: 18px; }
-.tri select { border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 15px; padding: 4px 0; }
+.tri select { border: 0; background: none; color: var(--accent-texte); font-weight: 600; font-size: 15px; padding: 4px 0; }
 .section-tete h2 .aide { font-family: var(--sans); font-size: 14px; font-weight: 400; margin-left: 6px; }
 .section-tete h2 { font-size: 20px; font-weight: 600; }
-.lien { color: var(--accent); font-weight: 500; font-size: 15px; text-decoration: none; }
+.lien { color: var(--accent-texte); font-weight: 500; font-size: 15px; text-decoration: none; }
 .grille { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .carte {
   display: flex; flex-direction: column; background: var(--carte); border: 1px solid var(--bordure);
@@ -133,7 +171,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .ligne-recette .vignette { width: 72px; height: 72px; border-radius: 12px; flex: none; }
 .ligne-recette .vignette .assiette svg.i { width: 22px; height: 22px; }
 .ligne-recette h3 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
-.lettre { font-family: var(--serif); color: var(--accent); font-size: 15px; font-weight: 600; margin: 14px 0 2px 4px; }
+.lettre { font-family: var(--serif); color: var(--accent-texte); font-size: 15px; font-weight: 600; margin: 14px 0 2px 4px; }
 
 /* ---------- barre d'onglets ---------- */
 .tabbar {
@@ -146,7 +184,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   font-size: 12px; color: var(--gris); text-decoration: none;
 }
-.tabbar a[aria-current="page"] { color: var(--accent); font-weight: 500; }
+.tabbar a[aria-current="page"] { color: var(--accent-texte); font-weight: 500; }
 .tabbar svg.i { width: 23px; height: 23px; stroke-width: 1.8; }
 
 .fab {
@@ -160,7 +198,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
   display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 16px;
   background: var(--doux); margin-top: 18px; font-size: 15px;
 }
-.banniere.erreur { background: #F7DED3; }
+.banniere.erreur { background: var(--alerte-fond); }
 .banniere .txt { flex: 1; }
 .banniere strong { display: block; }
 .spinner { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid rgba(201, 72, 10, .25); border-top-color: var(--accent); animation: tourne 0.9s linear infinite; flex: none; }
@@ -180,7 +218,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 }
 .bouton:active { background: var(--accent-fonce); }
 .bouton.secondaire { background: var(--carte); color: var(--encre); border: 1px solid var(--bordure); }
-.bouton.danger { background: none; color: #A3341A; border: 1px solid #E8C2B4; }
+.bouton.danger { background: none; color: var(--danger); border: 1px solid var(--danger-bord); }
 .bouton.petit { min-height: 44px; font-size: 15px; padding: 6px 16px; border-radius: 12px; }
 .bouton.large { width: 100%; }
 .bouton[disabled] { opacity: .55; }
@@ -196,7 +234,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
   position: relative; margin-top: -30px; background: var(--fond); border-radius: 28px 28px 0 0;
   padding: 26px 20px calc(var(--bas) + 110px);
 }
-.surtitre { color: var(--accent); font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.surtitre { color: var(--accent-texte); font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
 .fiche-feuille h1 { font-size: 32px; font-weight: 600; line-height: 1.15; margin: 6px 0 18px; }
 .stats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); background: var(--carte); border: 1px solid var(--bordure); border-radius: 16px; padding: 14px 0; }
 .stats div { text-align: center; }
@@ -214,7 +252,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .portions > span { font-weight: 500; font-size: 17px; }
 .stepper { display: flex; align-items: center; gap: 14px; }
 .stepper b { min-width: 22px; text-align: center; font-size: 17px; }
-.stepper button { width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--accent); color: var(--accent); display: grid; place-items: center; }
+.stepper button { width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--accent); color: var(--accent-texte); display: grid; place-items: center; }
 .stepper button svg.i { width: 18px; height: 18px; stroke-width: 2.5; }
 
 .groupe-titre { font-family: var(--serif); font-size: 17px; font-weight: 600; margin: 18px 0 2px; }
@@ -231,23 +269,23 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 
 .etapes { list-style: none; padding: 0; margin: 8px 0 0; }
 .etape { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--bordure); }
-.etape .num { width: 30px; height: 30px; border-radius: 50%; background: var(--doux); color: var(--accent); font-weight: 700; font-size: 14px; display: grid; place-items: center; flex: none; }
+.etape .num { width: 30px; height: 30px; border-radius: 50%; background: var(--doux); color: var(--accent-texte); font-weight: 700; font-size: 14px; display: grid; place-items: center; flex: none; }
 .etape p { margin: 3px 0 0; font-size: 16.5px; }
-.etape strong, .cuisine-texte strong { color: var(--accent); font-weight: inherit; }
+.etape strong, .cuisine-texte strong { color: var(--accent-texte); font-weight: inherit; }
 .duree { color: var(--accent-fonce); font-weight: 600; white-space: nowrap; }
 
 .notes { white-space: pre-wrap; font-size: 16.5px; padding-top: 12px; }
 .notes p { margin: 0 0 12px; }
 .source { margin-top: 18px; padding: 14px 16px; background: var(--carte); border: 1px solid var(--bordure); border-radius: 14px; font-size: 15px; overflow-wrap: anywhere; }
 .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-.tag { padding: 5px 12px; border-radius: 999px; background: var(--doux); font-size: 14px; color: var(--accent-fonce); }
+.tag { padding: 5px 12px; border-radius: 999px; background: var(--doux); font-size: 14px; color: var(--brun); }
 .actions-fiche { display: flex; gap: 10px; margin-top: 28px; }
 .actions-fiche .bouton { flex: 1; }
 
 .barre-bas {
   position: fixed; z-index: 15; left: 0; right: 0; bottom: 0;
   padding: 14px 20px calc(var(--bas) + 16px);
-  background: linear-gradient(to top, var(--fond) 70%, rgba(246, 240, 230, 0));
+  background: linear-gradient(to top, var(--fond) 70%, var(--fond-0));
 }
 .barre-bas > div { max-width: 520px; margin: 0 auto; display: flex; gap: 12px; }
 .barre-bas .bouton { flex: 1; box-shadow: 0 8px 20px rgba(201, 72, 10, .28); }
@@ -264,7 +302,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .badge-veille svg.i { width: 16px; height: 16px; }
 .progression { height: 6px; border-radius: 3px; background: var(--bordure); margin: 22px 0 22px; overflow: hidden; }
 .progression div { height: 100%; background: var(--accent-vif); border-radius: 3px; transition: width .3s; }
-.etape-label { color: var(--accent); font-weight: 700; letter-spacing: .08em; font-size: 16px; text-transform: uppercase; }
+.etape-label { color: var(--accent-texte); font-weight: 700; letter-spacing: .08em; font-size: 16px; text-transform: uppercase; }
 .etape-label span { color: var(--gris); font-weight: 500; }
 .etape-groupe { color: var(--gris); font-size: 14px; margin-top: 4px; }
 .cuisine-texte { font-family: var(--serif); font-size: clamp(25px, 7vw, 32px); line-height: 1.35; margin: 14px 0 22px; font-weight: 450; }
@@ -288,10 +326,10 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .minuteur.fini { border-color: var(--accent); }
 .minuteur.sonne { animation: sonne 1s ease-in-out infinite; }
 .minuteur.fini .val { stroke: var(--accent); }
-@keyframes sonne { 50% { background: #FFE2CC; } }
+@keyframes sonne { 50% { background: var(--sonne); } }
 .minuteur-btns { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
 .minuteur-btns button { min-width: 0; padding: 0 8px; height: 48px; border-radius: 14px; border: 1px solid var(--bordure); background: var(--carte); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; }
-.minuteur-btns .lecture { background: var(--minuteur); border-color: var(--minuteur); color: var(--encre); }
+.minuteur-btns .lecture { background: var(--minuteur); border-color: var(--minuteur); color: #2B2118; } /* foncé dans les deux modes */
 
 .choix-durees { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 14px; }
 .choix-durees button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--bordure); background: var(--carte); font-size: 14px; }
@@ -300,7 +338,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
   display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding: 10px 14px; border-radius: 14px; background: var(--pastel); font-weight: 600;
 }
 .minuteur-mini .temps { font-variant-numeric: tabular-nums; margin-left: auto; }
-.minuteur-mini.fini { background: #F7DED3; color: var(--accent-fonce); }
+.minuteur-mini.fini { background: var(--alerte-fond); color: var(--alerte-texte); }
 .minuteur-mini.pause .temps { opacity: .6; }
 .minuteurs-autres { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
 .minuteurs-autres .minuteur-mini { width: 100%; margin: 0; text-align: left; }
@@ -315,7 +353,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
   /* Toujours visible en bas de l'écran ; le reste de l'étape défile au-dessus. */
   position: fixed; z-index: 15; left: 0; right: 0; bottom: 0;
   display: flex; gap: 12px; padding: 14px 20px calc(var(--bas) + 16px);
-  background: linear-gradient(to top, var(--fond) 75%, rgba(246, 240, 230, 0));
+  background: linear-gradient(to top, var(--fond) 75%, var(--fond-0));
 }
 .cuisine-nav .bouton { height: 64px; flex: 1; font-size: 18px; }
 .cuisine-nav .bouton.secondaire { flex: .8; }
@@ -352,8 +390,8 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .carte-bloc h2 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
 .carte-bloc p { margin: 0 0 14px; color: var(--gris); font-size: 15px; }
 .etat { margin-top: 12px; font-size: 15px; padding: 12px 14px; border-radius: 12px; background: var(--doux); }
-.etat.ok { background: #E3ECDD; color: #2F5A2B; }
-.etat.ko { background: #F7DED3; color: #8E2E14; }
+.etat.ok { background: var(--ok-fond); color: var(--ok-texte); }
+.etat.ko { background: var(--alerte-fond); color: var(--alerte-texte); }
 .jeton-ligne { display: flex; gap: 8px; }
 .jeton-ligne input { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: 15px; }
 .jeton-ligne input.masque { -webkit-text-security: disc; text-security: disc; }
@@ -364,7 +402,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .verif { margin: -6px 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--pastel); color: var(--brun); font-size: 14px; }
 .verif ul { margin: 6px 0; padding-left: 20px; }
 .aide-bloc { margin: -6px 0 18px; border: 1px solid var(--bordure); border-radius: 12px; background: var(--carte); font-size: 14px; }
-.aide-bloc summary { padding: 12px 14px; color: var(--accent); font-weight: 600; cursor: pointer; }
+.aide-bloc summary { padding: 12px 14px; color: var(--accent-texte); font-weight: 600; cursor: pointer; }
 .aide-bloc > :not(summary) { margin-left: 14px; margin-right: 14px; }
 .aide-bloc ul { padding-left: 18px; }
 .aide-bloc li { margin-bottom: 6px; }
@@ -423,7 +461,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .f-liste { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .f-recette { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px; border-radius: 14px; background: var(--carte); border: 1px solid var(--bordure); text-align: left; font-size: 16px; }
 .f-recette.pris { border-color: var(--accent); background: var(--pastel); }
-.f-recette.pris svg.i { color: var(--accent); }
+.f-recette.pris svg.i { color: var(--accent-texte); }
 
 /* ---------- visionneuse ---------- */
 .fiche-hero.agrandissable { cursor: zoom-in; }
