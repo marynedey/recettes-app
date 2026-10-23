@@ -195,9 +195,10 @@ export function ongletsGlissants(root, piste, { depart, surChangement = () => {}
     if (haut < 0) window.scrollBy({ top: haut - 12, behavior: 'instant' });
   };
 
-  const ajusterHauteur = () => { piste.style.height = `${panneaux[i].offsetHeight}px`; };
+  // Piste retirée de la page (écran remplacé) : largeur nulle, rien à ajuster.
+  const ajusterHauteur = () => { if (piste.isConnected) piste.style.height = `${panneaux[i].offsetHeight}px`; };
   const marquer = n => {
-    if (n < 0 || n >= ordre.length) return;
+    if (!(n >= 0 && n < ordre.length)) return; // NaN aussi (largeur nulle)
     const change = n !== i;
     i = n;
     onglets.forEach(b => b.setAttribute('aria-selected', b.dataset.o === ordre[i]));

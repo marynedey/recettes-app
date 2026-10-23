@@ -82,8 +82,8 @@ async function fauxGitHub(route) {
 
 let navigateur, ctx, page, erreurs;
 
-async function nouvellePage({ configure = true, horloge = false, avant = null } = {}) {
-  ctx = await navigateur.newContext({ ...devices['Pixel 7'], locale: 'fr-FR', serviceWorkers: 'allow', permissions: ['notifications'] });
+async function nouvellePage({ configure = true, horloge = false, avant = null, sombre = false } = {}) {
+  ctx = await navigateur.newContext({ ...devices['Pixel 7'], locale: 'fr-FR', serviceWorkers: 'allow', permissions: ['notifications'], colorScheme: sombre ? 'dark' : 'light' });
   await ctx.route('https://api.github.com/**', fauxGitHub);
   if (avant) await avant(ctx);
   page = await ctx.newPage();
@@ -1397,5 +1397,50 @@ test('courses partagées : deux téléphones, la même liste ; « Retirer les ar
   assert.equal(await article(telephone2, 'Citrons').count(), 0);
   assert.deepEqual(erreurs, []);
   await ctx2.close();
+  await ctx.close();
+});
+
+for (const sombre of [true, false]) test(`mode ${sombre ? 'sombre' : 'clair'} : suit le réglage du téléphone, texte lisible partout`, async () => {
+  depotInitial();
+  await nouvellePage({ sombre });
+  const couleurs = sel => page.evaluate(s => { const c = getComputedStyle(document.querySelector(s)); return { fond: c.backgroundColor, texte: c.color }; }, sel);
+  assert.equal((await couleurs('body')).fond, sombre ? 'rgb(28, 23, 18)' : 'rgb(246, 240, 230)');
+  assert.equal((await couleurs('.carte')).fond, sombre ? 'rgb(39, 32, 26)' : 'rgb(255, 251, 244)');
+  assert.equal(await page.getAttribute('meta[name=theme-color][media*=dark]', 'content'), '#1C1712');
+  // Contraste du texte sur son fond, sur chaque écran (≥ 4,5:1, 3:1 pour les gros titres).
+  const ecrans = ['#/', '#/recette/tarte-tatin', '#/courses', '#/reglages', '#/cuisine/tarte-tatin', '#/modifier/tarte-tatin'];
+  for (const ecran of ecrans) {
+    await page.goto(BASE + ecran);
+    await page.waitForTimeout(400);
+    const faibles = await page.evaluate(() => {
+      const rgb = c => (c.match(/[\d.]+/g) || []).map(Number);
+      const lum = ([r, g, b]) => [r, g, b].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+        .reduce((t, v, i) => t + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const fondDe = el => {
+        for (let e = el; e; e = e.parentElement) {
+          const c = getComputedStyle(e);
+          if (c.backgroundImage !== 'none') return null; // sur une photo ou un dégradé : non mesuré
+          const f = rgb(c.backgroundColor);
+          if (f.length >= 3 && (f[3] ?? 1) > 0.5) return f;
+        }
+        return rgb(getComputedStyle(document.body).backgroundColor);
+      };
+      const res = [];
+      for (const el of document.querySelectorAll('body *')) {
+        if (!el.offsetParent || el.closest('.sr') || ![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue;
+        const c = getComputedStyle(el);
+        if (c.visibility === 'hidden' || parseFloat(c.opacity) < 1 || el.closest('[disabled], .fait, .pris, input')) continue;
+        const fond = fondDe(el);
+        if (!fond) continue;
+        const [a, b] = [lum(rgb(c.color)), lum(fond)].sort((x, y) => y - x);
+        const ratio = (a + 0.05) / (b + 0.05);
+        const gros = parseFloat(c.fontSize) >= 24;
+        if (ratio < (gros ? 3 : 4.5)) res.push(`${el.textContent.trim().slice(0, 25)} (${ratio.toFixed(1)})`);
+      }
+      return res;
+    });
+    assert.deepEqual(faibles, [], `${ecran} : texte trop peu contrasté`);
+  }
+  assert.deepEqual(erreurs, []);
   await ctx.close();
 });
