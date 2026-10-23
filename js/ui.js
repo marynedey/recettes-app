@@ -173,3 +173,85 @@ export function ouvrirVisionneuse(chemins, depart = 0) {
   window.addEventListener('popstate', fermer);
   el.querySelector('.v-fermer').onclick = () => history.back();
 }
+
+/**
+ * Onglets côte à côte dans une piste qu'on fait glisser au doigt (fiche, nouvelle recette).
+ * Le contenu suit le doigt, puis se cale vite sur l'onglet voulu (pas d'aimantation native,
+ * dont le ralenti au début et à la fin est trop marqué). La piste prend la hauteur de l'onglet affiché.
+ * Renvoie ouvrir(onglet, anime).
+ */
+export function ongletsGlissants(root, piste, { depart, surChangement = () => {} }) {
+  const panneaux = [...piste.children];
+  const ordre = panneaux.map(p => p.dataset.o);
+  const onglets = root.querySelectorAll('[role=tab]');
+  let i = Math.max(0, ordre.indexOf(depart));
+  let anim = null;
+
+  const ajusterHauteur = () => { piste.style.height = `${panneaux[i].offsetHeight}px`; };
+  const marquer = n => {
+    i = n;
+    onglets.forEach(b => b.setAttribute('aria-selected', b.dataset.o === ordre[i]));
+    ajusterHauteur();
+    surChangement(ordre[i]);
+  };
+  const animer = (cible, duree) => {
+    cancelAnimationFrame(anim);
+    const de = piste.scrollLeft, t0 = performance.now();
+    const pas = t => {
+      const k = Math.min(1, (t - t0) / duree);
+      piste.scrollLeft = de + (cible - de) * (1 - (1 - k) ** 3); // départ franc, arrivée douce et courte
+      if (k < 1) anim = requestAnimationFrame(pas);
+    };
+    anim = requestAnimationFrame(pas);
+  };
+  const ouvrir = (o, anime = true) => {
+    const n = typeof o === 'number' ? o : ordre.indexOf(o);
+    marquer(Math.max(0, Math.min(ordre.length - 1, n)));
+    const cible = i * piste.clientWidth;
+    if (anime) animer(cible, 220); else { cancelAnimationFrame(anim); piste.scrollLeft = cible; }
+  };
+  onglets.forEach(b => b.addEventListener('click', () => ouvrir(b.dataset.o)));
+
+  // Glissement : on ne prend la main que pour un geste nettement horizontal ;
+  // pas sur les photos, qu'on réordonne en les faisant glisser.
+  let doigt = null, x0 = 0, y0 = 0, s0 = 0, mode = null, xPrec = 0, tPrec = 0, vitesse = 0, bloquerClic = 0;
+  piste.addEventListener('pointerdown', e => {
+    if (doigt !== null || e.button > 0 || e.target.closest('.photos-liste')) return;
+    doigt = e.pointerId; x0 = xPrec = e.clientX; y0 = e.clientY; tPrec = e.timeStamp; s0 = piste.scrollLeft; mode = null; vitesse = 0;
+  });
+  piste.addEventListener('pointermove', e => {
+    if (e.pointerId !== doigt) return;
+    const dx = e.clientX - x0, dy = e.clientY - y0;
+    if (!mode && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+      mode = 'glisse';
+      cancelAnimationFrame(anim);
+      piste.setPointerCapture(doigt);
+    } else if (!mode && Math.abs(dy) > 8) mode = 'defile';
+    if (mode !== 'glisse') return;
+    piste.scrollLeft = s0 - dx;
+    if (e.timeStamp > tPrec) vitesse = (e.clientX - xPrec) / (e.timeStamp - tPrec);
+    xPrec = e.clientX; tPrec = e.timeStamp;
+  });
+  const fin = e => {
+    if (e.pointerId !== doigt) return;
+    doigt = null;
+    if (mode !== 'glisse') return;
+    bloquerClic = Date.now();
+    const dx = e.clientX - x0, seuil = piste.clientWidth * 0.2;
+    let n = i;
+    if (e.type === 'pointerup' && (dx < -seuil || vitesse < -0.35)) n = i + 1;
+    else if (e.type === 'pointerup' && (dx > seuil || vitesse > 0.35)) n = i - 1;
+    ouvrir(n);
+  };
+  piste.addEventListener('pointerup', fin);
+  piste.addEventListener('pointercancel', fin);
+  // Le doigt levé après un glissement ne doit pas cocher un ingrédient ou suivre un lien.
+  piste.addEventListener('click', e => { if (Date.now() - bloquerClic < 400) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+  // Hauteur à jour quel que soit l'onglet qui change de taille (police chargée, texte agrandi…).
+  const observateur = new ResizeObserver(() => { ajusterHauteur(); if (!anim && doigt === null) piste.scrollLeft = i * piste.clientWidth; });
+  panneaux.forEach(p => observateur.observe(p));
+  observateur.observe(piste);
+  ouvrir(i, false);
+  return ouvrir;
+}

@@ -82,7 +82,8 @@ function partageEntrant() {
   if (!q.has('url') && !q.has('text') && !q.has('title')) return;
   const brut = [q.get('url'), q.get('text'), q.get('title')].filter(Boolean).join(' ');
   const url = (brut.match(/https?:\/\/[^\s]+/) || [''])[0];
-  history.replaceState(null, '', location.pathname + '#/ajouter' + (url ? `?url=${encodeURIComponent(url)}` : ''));
+  // Avec un lien, l'import part tout seul (auto=1) : rien à toucher après « Partager ».
+  history.replaceState(null, '', location.pathname + '#/ajouter' + (url ? `?url=${encodeURIComponent(url)}&auto=1` : ''));
 }
 
 // Suivi des imports en attente.

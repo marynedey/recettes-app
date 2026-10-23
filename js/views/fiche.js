@@ -3,7 +3,7 @@
 import * as store from '../store.js';
 import { formatQty, formatDuree, flatSteps, nonRecalcule, listePhotos } from '../format.js';
 import { ajouterAuxCourses } from './courses.js';
-import { esc, icon, visuel, chargerPhotos, ouvrirVisionneuse, tempsTotal, texteEtape, texteNotes, retour, toast } from '../ui.js';
+import { esc, icon, visuel, chargerPhotos, ouvrirVisionneuse, tempsTotal, texteEtape, texteNotes, retour, toast, ongletsGlissants } from '../ui.js';
 
 const lireEtat = slug => JSON.parse(sessionStorage.getItem('mr.fiche.' + slug) || 'null');
 const ecrireEtat = (slug, e) => sessionStorage.setItem('mr.fiche.' + slug, JSON.stringify(e));
@@ -103,7 +103,7 @@ export function fiche(root, { params }) {
   const majLien = () => { if (btnCuisine) btnCuisine.href = `#/cuisine/${encodeURIComponent(r.slug)}?p=${etat.portions}`; };
 
   // Les trois onglets sont côte à côte dans une piste qui défile horizontalement :
-  // le contenu suit le doigt, et s'aimante sur l'onglet le plus proche.
+  // le contenu suit le doigt, puis se cale sur l'onglet voulu (ongletsGlissants, ui.js).
   const piste = root.querySelector('#piste');
   const panneaux = Object.fromEntries([...piste.children].map(p => [p.dataset.o, p]));
   const facteur = () => (base ? etat.portions / base : 1);
@@ -127,7 +127,7 @@ export function fiche(root, { params }) {
           <button id="plus" aria-label="Plus de personnes">${icon('plus')}</button></div></div>` : ''}
         ${lignes || '<div class="vide"><p>Aucun ingrédient.</p></div>'}
         ${aAjuster ? `<p class="aide note-ajuster"><span class="ajuster">à ajuster</span> : quantité que l'app n'a pas su recalculer pour ${etat.portions} personne${etat.portions > 1 ? 's' : ''}, à multiplier vous-même (×${String(Math.round(facteur() * 100) / 100).replace('.', ',')}).</p>` : ''}`;
-      const changer = d => { etat.portions = Math.max(1, etat.portions + d); sauver(); majLien(); vues.ingredients(); ajusterHauteur(); };
+      const changer = d => { etat.portions = Math.max(1, etat.portions + d); sauver(); majLien(); vues.ingredients(); };
       contenu.querySelector('#moins')?.addEventListener('click', () => changer(-1));
       contenu.querySelector('#plus')?.addEventListener('click', () => changer(1));
       contenu.querySelectorAll('input[type=checkbox]').forEach(c => c.addEventListener('change', () => {
@@ -164,27 +164,7 @@ export function fiche(root, { params }) {
     },
   };
 
-  const ordre = ['ingredients', 'etapes', 'notes'];
-  const onglets = root.querySelectorAll('[role=tab]');
-  // La piste prend la hauteur de l'onglet affiché (sinon, celle du plus long).
-  const ajusterHauteur = () => { piste.style.height = `${panneaux[etat.onglet].offsetHeight}px`; };
-  const marquer = o => {
-    if (etat.onglet !== o) { etat.onglet = o; sauver(); }
-    onglets.forEach(b => b.setAttribute('aria-selected', b.dataset.o === o));
-    ajusterHauteur();
-  };
-  const ouvrir = (o, doux = true) => {
-    marquer(o);
-    piste.scrollTo({ left: ordre.indexOf(o) * piste.clientWidth, behavior: doux ? 'smooth' : 'instant' });
-  };
-  onglets.forEach(b => b.addEventListener('click', () => ouvrir(b.dataset.o)));
-  // Glissement au doigt : l'onglet suit la position de la piste.
-  piste.addEventListener('scroll', () => {
-    const o = ordre[Math.round(piste.scrollLeft / piste.clientWidth)];
-    if (o && o !== etat.onglet) marquer(o);
-  }, { passive: true });
-  new ResizeObserver(ajusterHauteur).observe(panneaux.ingredients);
-  ordre.forEach(o => vues[o]());
+  Object.keys(panneaux).forEach(o => vues[o]());
   majLien();
-  ouvrir(etat.onglet, false);
+  ongletsGlissants(root, piste, { depart: etat.onglet, surChangement: o => { if (etat.onglet !== o) { etat.onglet = o; sauver(); } } });
 }
