@@ -1153,3 +1153,37 @@ test('minuteur terminé : sonnerie en boucle, « Arrêter » et « +1 min » (ap
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
+
+test('fiche : en changeant d\'onglet depuis le bas de la page, on arrive en haut du nouvel onglet', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/recette/cinnamon-rolls');
+  await page.locator('#piste').waitFor();
+  const hautOnglets = () => page.evaluate(() => Math.round(document.querySelector('[role=tablist]').getBoundingClientRect().top));
+  // Tout en bas des ingrédients, on glisse vers les étapes.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  assert.ok(await hautOnglets() < 0, 'les onglets sont sortis de l\'écran');
+  const zone = await page.locator('#piste').boundingBox();
+  const y = Math.min(zone.y + zone.height - 40, 500);
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 330, y }] });
+  for (let k = 1; k <= 5; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 330 - 50 * k, y }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(1200);
+  assert.equal(await ongletActif(), 'Étapes');
+  const h = await hautOnglets();
+  assert.ok(h >= 0 && h < 40, `onglets en haut de l'écran (${h})`);
+  // Pareil en touchant un onglet.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.click('[role=tab][data-o=notes]', { force: true }).catch(() => page.evaluate(() => document.querySelector('[role=tab][data-o=notes]').click()));
+  await page.waitForTimeout(1200);
+  assert.equal(await ongletActif(), 'Notes');
+  assert.ok(await hautOnglets() >= 0);
+  // Sans être descendu, rien ne bouge.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.click('[role=tab][data-o=ingredients]');
+  await page.waitForTimeout(800);
+  assert.equal(await page.evaluate(() => window.scrollY), 0);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});

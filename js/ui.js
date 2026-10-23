@@ -36,24 +36,23 @@ const P = {
 };
 export const icon = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[n] || ''}</svg>`;
 
-// Palettes chaudes pour les recettes sans photo (cf. maquette).
+// Dégradés vifs, tirés de l'orange de l'icône, pour les recettes sans photo.
 const PALETTES = [
-  ['#9A3F1E', '#D9853B', '#E39A45', '#8E3A1E'],
-  ['#6E5E40', '#C2AB80', '#D5C08E', '#6A573A'],
-  ['#C8642A', '#EDA25A', '#F0A458', '#B94D1E'],
-  ['#A8781E', '#E0B444', '#E6BC3F', '#9B5A18'],
-  ['#7F3B2A', '#C9705A', '#D98A6C', '#6B2D1F'],
-  ['#5E6B3A', '#B7B26A', '#CFC57C', '#4F5B2E'],
+  ['#F07818', '#F7A12B'],
+  ['#E8572A', '#F59E5B'],
+  ['#EE9A2C', '#F7C861'],
+  ['#E4683F', '#F4AC7C'],
+  ['#D9482B', '#F08A4B'],
+  ['#F28C38', '#F9BE7E'],
 ];
 function hash(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); }
 
 /** Visuel d'une recette : dégradé chaud, remplacé par la photo une fois chargée. */
 export function visuel(r, cls = '') {
-  const [c1, c2, c3, c4] = PALETTES[hash(r?.slug || r?.meta?.titre || '') % PALETTES.length];
+  const [c1, c2] = PALETTES[hash(r?.slug || r?.meta?.titre || '') % PALETTES.length];
   const attr = r?.meta && listePhotos(r.meta).length ? ` data-photo="${esc(r.slug)}"` : '';
-  return `<div class="visuel ${cls}" style="--c1:${c1};--c2:${c2};--c3:${c3};--c4:${c4}"${attr}>
-    <span class="rond r1"></span><span class="rond r2"></span><span class="rond r3"></span>
-    <span class="assiette">${icon('plate')}</span></div>`;
+  return `<div class="visuel ${cls}" style="--c1:${c1};--c2:${c2}"${attr}>
+    <span class="rond"></span><span class="assiette">${icon('plate')}</span></div>`;
 }
 
 /** Charge les photos des visuels présents dans `root`. */
@@ -188,6 +187,14 @@ export function ongletsGlissants(root, piste, { depart, surChangement = () => {}
   const onglets = root.querySelectorAll('[role=tab]');
   let i = Math.max(0, ordre.indexOf(depart));
 
+  // Changement d'onglet alors qu'on était descendu dans la page : on remonte en haut du nouvel onglet.
+  const barre = root.querySelector('[role=tablist]');
+  let affiche = i;
+  const remonter = () => {
+    const haut = barre?.getBoundingClientRect().top ?? 0;
+    if (haut < 0) window.scrollBy({ top: haut - 12, behavior: 'smooth' });
+  };
+
   const ajusterHauteur = () => { piste.style.height = `${panneaux[i].offsetHeight}px`; };
   const marquer = n => {
     if (n < 0 || n >= ordre.length) return;
@@ -205,12 +212,19 @@ export function ongletsGlissants(root, piste, { depart, surChangement = () => {}
     if (panneaux[i].offsetHeight > piste.offsetHeight) ajusterHauteur();
     piste.scrollTo({ left: i * piste.clientWidth, behavior: anime ? 'smooth' : 'instant' });
     if (!anime) ajusterHauteur();
+    if (anime && i !== affiche) remonter();
+    affiche = i;
   };
   onglets.forEach(b => b.addEventListener('click', () => ouvrir(b.dataset.o)));
 
   // Pendant le glissement : seule la pastille suit (aucun changement de mise en page).
   let fin = null;
-  const auRepos = () => { vers = null; marquer(Math.round(piste.scrollLeft / piste.clientWidth)); ajusterHauteur(); };
+  const auRepos = () => {
+    vers = null;
+    marquer(Math.round(piste.scrollLeft / piste.clientWidth));
+    ajusterHauteur();
+    if (i !== affiche) { affiche = i; remonter(); }
+  };
   piste.addEventListener('scroll', () => {
     if (vers === null) marquer(Math.round(piste.scrollLeft / piste.clientWidth));
     clearTimeout(fin);
