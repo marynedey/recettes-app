@@ -17,6 +17,7 @@ const P = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
   play: '<path d="M8 5.5v13l10.5-6.5z"/>',
   pause: '<rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/>',
+  stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   minus: '<path d="M5 12h14"/>',
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',

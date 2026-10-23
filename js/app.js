@@ -1,6 +1,7 @@
 // Point d'entrée : routeur par ancre (#/…), barre d'onglets, service worker.
 
-import { icon, toast } from './ui.js';
+import { esc, icon, toast } from './ui.js';
+import * as M from './minuteurs.js';
 import * as store from './store.js';
 import { accueil, listeRecettes, favorisVue } from './views/listes.js';
 import { courses } from './views/courses.js';
@@ -75,6 +76,35 @@ window.addEventListener('hashchange', rendre);
 window.addEventListener('scroll', () => positions.set(location.hash, window.scrollY), { passive: true });
 
 window.addEventListener('hashchange', () => sessionStorage.setItem('mr.nav', '1'));
+
+// Minuteur terminé, sur n'importe quel écran : bandeau « C'est prêt ! » (la sonnerie
+// tourne en boucle dans minuteurs.js) avec « Arrêter » et « +1 min ».
+function alarme() {
+  let el = document.getElementById('alarme');
+  // Dans le mode cuisine de la recette, son minuteur affiche déjà « Arrêter » et « +1 min ».
+  const ici = (location.hash.match(/^#\/cuisine\/([^?]+)/) || [])[1];
+  const liste = M.quiSonnent().filter(m => encodeURIComponent(m.slug) !== ici);
+  if (!liste.length) { el?.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'alarme'; el.className = 'alarme'; el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-label', 'Minuteur terminé');
+    el.addEventListener('click', e => {
+      const b = e.target.closest('[data-a]');
+      if (!b) return;
+      const id = b.closest('[data-id]').dataset.id;
+      if (b.dataset.a === 'arreter') M.arreter(id); else M.prolonger(id, 60);
+    });
+    document.body.appendChild(el);
+  }
+  el.innerHTML = liste.map(m => `<div class="alarme-ligne" data-id="${esc(m.id)}">
+      <div class="alarme-txt"><strong>⏰ C'est prêt !</strong><span>${esc(m.titre)} · étape ${m.etape + 1} · ${esc(m.label)}</span></div>
+      <div class="alarme-btns"><button class="bouton secondaire petit" data-a="plus1">+1 min</button>
+        <button class="bouton petit" data-a="arreter">${icon('stop')}Arrêter</button></div>
+    </div>`).join('');
+}
+M.surChangement(alarme);
+window.addEventListener('hashchange', alarme);
+alarme();
 
 // « Partager → Mes Recettes » (share_target) : ?url=…&text=…
 function partageEntrant() {

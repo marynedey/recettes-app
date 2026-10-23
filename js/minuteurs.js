@@ -1,6 +1,7 @@
 // Minuteurs du mode cuisine : plusieurs à la fois, gardés sur le téléphone
 // (ils continuent si on change d'étape, de page, ou si l'app est rouverte),
-// avec une notification par minuteur en cours.
+// avec une notification par minuteur en cours. À la fin, ça sonne comme un réveil
+// jusqu'à « Arrêter » ou « +1 min » (dans l'app ou depuis la notification).
 
 import * as push from './push.js';
 
@@ -9,8 +10,9 @@ const ecouteurs = new Set();
 
 /* ---------- état ---------- */
 
-// { [id]: { id, slug, titre, etape, label, total, fin, reste, fini } }
-// fin : heure de fin (ms) quand il tourne, null en pause ; reste : secondes restantes en pause.
+// { [id]: { id, slug, titre, etape, label, total, fin, reste, fini, sonne, finiA } }
+// fin : heure de fin (ms) quand il tourne, null en pause ; reste : secondes restantes en pause ;
+// sonne : terminé et pas encore arrêté.
 let tous = {};
 try { tous = JSON.parse(localStorage.getItem(CLE)) || {}; } catch { tous = {}; }
 
@@ -19,7 +21,7 @@ const sauver = () => {
   // Copie pour le service worker (qui n'a pas accès au localStorage) : à la réception d'une
   // notification du serveur des minuteurs, il y retrouve quel minuteur est terminé.
   if ('caches' in window) {
-    caches.open('mr-donnees').then(c => c.put(new URL('minuteurs.json', document.baseURI).href,
+    caches.open(push.DONNEES).then(c => c.put(push.adresseDonnee('minuteurs.json'),
       new Response(JSON.stringify(tous), { headers: { 'Content-Type': 'application/json' } }))).catch(() => {});
   }
 };
@@ -31,6 +33,7 @@ export const deRecette = slug => Object.values(tous).filter(m => m.slug === slug
 export const enCours = m => !!m && m.fin !== null && !m.fini;
 export const restant = m => (m.fin !== null ? Math.max(0, Math.ceil((m.fin - Date.now()) / 1000)) : m.reste);
 export const surChangement = fn => { ecouteurs.add(fn); return () => ecouteurs.delete(fn); };
+export const quiSonnent = () => Object.values(tous).filter(m => m.sonne);
 
 export function lancer({ id, slug, titre, etape, label, secondes }) {
   const m = tous[id];
@@ -41,6 +44,25 @@ export function lancer({ id, slug, titre, etape, label, secondes }) {
     const total = m?.total || secondes;
     tous[id] = { id, slug, titre, etape, label, total, fin: Date.now() + total * 1000, reste: total, fini: false };
   }
+  maj(id);
+}
+
+/** « Arrêter » : la sonnerie s'arrête, le minuteur reste affiché « Terminé ». */
+export function arreter(id) {
+  const m = tous[id];
+  if (!m?.sonne) return;
+  m.sonne = false;
+  sauver();
+  push.annuler(id); // plus de rappels du serveur
+  fermerNotification(id);
+  prevenir();
+}
+
+/** « +1 min » sur un minuteur terminé : il repart pour s secondes. */
+export function prolonger(id, s = 60) {
+  const m = tous[id];
+  if (!m) return;
+  Object.assign(m, { fini: false, sonne: false, finiA: null, fin: Date.now() + s * 1000, reste: s, total: s });
   maj(id);
 }
 
@@ -55,6 +77,7 @@ export function pause(id) {
 /** Ajoute (ou retire) d'secondes, en marche comme en pause. */
 export function ajuster(id, d, defaut) {
   let m = tous[id];
+  if (m?.fini && d > 0) { prolonger(id, d); return; }
   if (!m) { if (!defaut) return; m = tous[id] = { ...defaut, total: defaut.secondes, fin: null, reste: defaut.secondes, fini: false }; delete m.secondes; }
   if (m.fin !== null) m.fin = Math.max(Date.now() + 1000, m.fin + d * 1000);
   else m.reste = Math.max(0, m.reste + d);
@@ -69,7 +92,7 @@ export function arreterRecette(slug) {
 }
 
 export function supprimer(id) {
-  if (enCours(tous[id])) push.annuler(id);
+  if (enCours(tous[id]) || tous[id]?.sonne) push.annuler(id);
   delete tous[id];
   sauver();
   fermerNotification(id);
@@ -88,9 +111,14 @@ function maj(id) {
 /* ---------- alarme ---------- */
 
 let audio = null;
+// Le navigateur n'autorise le son qu'après un toucher dans l'app : on prépare le son au premier.
+const preparerSon = () => {
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume?.(); } catch { /* pas de son */ }
+};
+document.addEventListener('pointerdown', preparerSon, { passive: true });
 function sonnerie() {
   try {
-    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    preparerSon();
     const t0 = audio.currentTime;
     for (let i = 0; i < 6; i++) {
       const o = audio.createOscillator(), g = audio.createGain();
@@ -107,12 +135,15 @@ function sonnerie() {
 
 // Vérifie les minuteurs toutes les demi-secondes, quel que soit l'écran affiché.
 function tic() {
+  if (actionsEnAttente) return; // d'abord les « Arrêter » / « +1 min » touchés app fermée
   let change = false;
   for (const m of Object.values(tous)) {
     if (enCours(m) && restant(m) === 0) {
-      m.fini = true; m.fin = null; m.reste = 0; change = true;
+      m.fini = true; m.sonne = true; m.fin = null; m.reste = 0; change = true;
       signalerFin(m);
     }
+    // Une sonnerie oubliée s'arrête d'elle-même au bout de 3 min.
+    if (m.sonne && m.finiA && Date.now() - m.finiA > DUREE_SONNERIE) { m.sonne = false; change = true; }
     // Ménage : un minuteur terminé depuis plus de 6 h n'a plus d'intérêt.
     if (m.fini && m.finiA && Date.now() - m.finiA > 6 * 3600e3) { delete tous[m.id]; fermerNotification(m.id); change = true; }
     if (m.fini && !m.finiA) { m.finiA = Date.now(); change = true; }
@@ -120,10 +151,44 @@ function tic() {
   if (change) { sauver(); prevenir(); }
 }
 setInterval(tic, 500);
+
+// Sonnerie en boucle (app ouverte) tant qu'un minuteur terminé n'est pas arrêté.
+const DUREE_SONNERIE = 3 * 60e3;
+setInterval(() => { if (!document.hidden && quiSonnent().length) sonnerie(); }, 2500);
+
+// Boutons « Arrêter » / « +1 min » touchés sur une notification alors que l'app était fermée :
+// le service worker les a notés, on les applique en revenant dans l'app.
+let actionsEnAttente = false;
+async function appliquerActions() {
+  actionsEnAttente = true;
+  try {
+    const c = await caches.open(push.DONNEES);
+    const actions = await c.match(push.adresseDonnee('actions.json')).then(r => r?.json()).catch(() => null);
+    if (!actions?.length) return;
+    await c.delete(push.adresseDonnee('actions.json'));
+    for (const a of actions) {
+      const m = tous[a.id];
+      if (!m) continue;
+      if (a.action === 'arreter') m.sonne = false;
+      if (a.action === 'plus1') Object.assign(m, { fini: false, sonne: false, finiA: null, fin: a.fin, reste: 60, total: 60 });
+    }
+    sauver();
+    prevenir();
+  } catch { /* Cache API indisponible */ } finally { actionsEnAttente = false; }
+}
+appliquerActions();
+// Même chose si le service worker prévient alors que l'app est ouverte.
+navigator.serviceWorker?.addEventListener('message', e => {
+  const a = e.data?.minuteur;
+  if (!a) return;
+  if (a.action === 'arreter') arreter(a.id);
+  if (a.action === 'plus1') prolonger(a.id, 60);
+});
 document.addEventListener('visibilitychange', () => {
   // Au retour dans l'app (autre onglet, autre appareil…), on relit l'état enregistré.
   if (document.hidden) return;
   try { tous = JSON.parse(localStorage.getItem(CLE)) || {}; } catch { /* garde l'état courant */ }
+  appliquerActions();
   tic();
   resynchroniser();
 });
@@ -173,6 +238,8 @@ async function notifier(m) {
     if (m.fini) {
       await reg.showNotification(`⏰ ${titre} : c'est prêt !`, {
         ...commun, body: m.label, renotify: true, requireInteraction: true, vibrate: [400, 200, 400, 200, 400],
+        actions: [{ action: 'arreter', title: 'Arrêter' }, { action: 'plus1', title: '+1 min' }],
+        data: { ...commun.data, minuteur: m.id },
       });
     } else if (m.fin !== null) {
       await reg.showNotification(`⏳ ${titre} · prêt à ${heure(m.fin)}`, {

@@ -466,3 +466,21 @@ button.toast-action { background: none; border: 0; padding: 0; font: inherit; }
 .vignette-photo { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .vignette-photo.deplacee { z-index: 2; opacity: .9; box-shadow: 0 10px 24px rgba(43, 33, 24, .3); transition: none; }
 .vignette-photo.cible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.minuteur-btns .lecture svg.i.trait { fill: none; stroke: currentColor; }
+/* Minuteur terminé : bandeau en haut de tous les écrans, tant que ça sonne. */
+.alarme {
+  position: fixed; z-index: 60; left: 12px; right: 12px; top: calc(var(--haut) + 10px); max-width: 520px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.alarme-ligne {
+  background: var(--encre); color: var(--carte); border-radius: 18px; padding: 14px 16px;
+  box-shadow: 0 12px 30px rgba(43, 33, 24, .35); display: flex; flex-direction: column; gap: 10px;
+  animation: alarme 1s ease-in-out infinite alternate;
+}
+@keyframes alarme { to { box-shadow: 0 12px 30px rgba(201, 72, 10, .6); } }
+.alarme-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.alarme-txt strong { font-size: 17px; }
+.alarme-txt span { font-size: 14px; opacity: .85; overflow-wrap: anywhere; }
+.alarme-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.alarme-btns .bouton.secondaire { background: transparent; color: var(--carte); border-color: rgba(255, 251, 244, .4); }
+.alarme-btns svg.i { fill: currentColor; stroke: none; }

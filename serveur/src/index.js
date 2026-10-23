@@ -5,13 +5,17 @@
 //   PUT    /minuteurs/<id>  { adresse, fin } : planifie (ou replanifie) l'envoi
 //   DELETE /minuteurs/<id>  : annule
 //
-// Un Durable Object par minuteur, réveillé par son alarme ; tout est effacé après l'envoi.
+// Un Durable Object par minuteur, réveillé par son alarme. À la fin du minuteur, la notification
+// est renvoyée toutes les 30 s (RAPPELS fois) pour sonner comme un réveil, jusqu'à « Arrêter » ou
+// « +1 min » (DELETE ou PUT) ; tout est effacé ensuite.
 
 import { DurableObject } from 'cloudflare:workers';
 import { creerCles, envoyer, adresseValide } from './webpush.js';
 
 const SUJET = 'https://marynedey.github.io/recettes-app/';
 const DELAI_MAX = 24 * 3600e3;
+const RAPPELS = 4;          // envois en plus du premier
+const ECART_RAPPELS = 30e3;
 
 const cles = env => env.CLES.get(env.CLES.idFromName('vapid')).obtenir();
 
@@ -60,7 +64,7 @@ export default {
 
 export class Minuteur extends DurableObject {
   async planifier(adresse, fin) {
-    await this.ctx.storage.put('envoi', { adresse, fin });
+    await this.ctx.storage.put('envoi', { adresse, fin, rappels: RAPPELS });
     await this.ctx.storage.setAlarm(fin);
   }
 
@@ -76,6 +80,11 @@ export class Minuteur extends DurableObject {
       // Erreur passagère du service : l'exception fait réessayer l'alarme.
       // 404/410 : le téléphone s'est désabonné, inutile d'insister.
       if (r.status >= 500 || r.status === 429) throw new Error(`Service de notifications : ${r.status}`);
+      if (r.ok && envoi.rappels > 0) {
+        await this.ctx.storage.put('envoi', { ...envoi, rappels: envoi.rappels - 1 });
+        await this.ctx.storage.setAlarm(Date.now() + ECART_RAPPELS);
+        return;
+      }
     }
     await this.ctx.storage.deleteAll();
   }

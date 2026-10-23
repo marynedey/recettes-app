@@ -35,6 +35,18 @@ async function abonnement() {
   return a || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: versOctets(cle) });
 }
 
+// Le service worker (boutons « Arrêter » / « +1 min » d'une notification, app fermée)
+// a besoin de l'adresse du serveur et de l'identifiant du téléphone : copie dans le Cache API.
+export const DONNEES = 'mr-donnees';
+export const adresseDonnee = nom => new URL(nom, document.baseURI).href;
+async function memoriserPourSW(extra = {}) {
+  try {
+    const c = await caches.open(DONNEES);
+    const avant = await c.match(adresseDonnee('config.json')).then(r => r?.json()).catch(() => null) || {};
+    await c.put(adresseDonnee('config.json'), new Response(JSON.stringify({ ...avant, serveur: adresseServeur(), appareil: appareil(), ...extra })));
+  } catch { /* Cache API indisponible */ }
+}
+
 let enCours = null;
 const abonnementPartage = () => (enCours ||= abonnement().catch(e => { enCours = null; throw e; }));
 
@@ -46,6 +58,7 @@ export async function planifier(id, fin) {
   if (!actif()) return;
   try {
     const { endpoint } = await abonnementPartage();
+    memoriserPourSW();
     await appel(chemin(id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adresse: endpoint, fin }) });
   } catch (e) { console.warn(e); /* hors ligne ou serveur absent : la notification locale reste */ }
 }
@@ -62,5 +75,6 @@ export async function tester() {
     throw new Error('Autorisez les notifications pour Mes Recettes (paramètres Android de l\'app).');
   }
   const { endpoint } = await abonnementPartage();
+  await memoriserPourSW({ essaiJusqua: Date.now() + 60e3 }); // le SW saura que c'est l'essai
   await appel(chemin('essai'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adresse: endpoint, fin: Date.now() + 10e3 }) });
 }

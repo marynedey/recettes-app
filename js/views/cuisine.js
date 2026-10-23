@@ -122,7 +122,8 @@ export function cuisine(root, { params, query }) {
       const defaut = { id, slug: r.slug, titre: r.meta.titre, etape: i, label: libelle(s, t), secondes: t.secondes };
       corps.querySelector('#m-lecture').onclick = () => {
         M.demanderNotifications();
-        if (M.enCours(M.obtenir(id))) M.pause(id); else M.lancer(defaut);
+        const m = M.obtenir(id);
+        if (M.enCours(m)) M.pause(id); else if (m?.sonne) M.arreter(id); else M.lancer(defaut);
       };
       corps.querySelector('#m-moins').onclick = () => M.ajuster(id, -60, defaut);
       corps.querySelector('#m-plus').onclick = () => M.ajuster(id, 60, defaut);
@@ -156,9 +157,14 @@ export function cuisine(root, { params, query }) {
     bloc.querySelector('.val').style.strokeDashoffset = String(100 - (m && m.total ? affiche / m.total : 1) * 100);
     bloc.classList.toggle('fini', !!m?.fini);
     bloc.querySelector('#lib').textContent = m?.fini ? 'Terminé !' : (m ? m.label : libelle(courant.s, defaut));
-    const enCours = M.enCours(m);
-    bloc.querySelector('#m-lecture').innerHTML = enCours ? `${icon('pause')}<span class="sr">Pause</span>`
-      : `${icon(m?.fini ? 'reset' : 'play')}<span class="sr">${m?.fini ? 'Relancer' : 'Démarrer'}</span>`;
+    // Le bouton principal dit ce qu'il fait (une icône seule n'était pas parlante une fois terminé).
+    const [ic, texte] = M.enCours(m) ? ['pause', 'Pause'] : m?.sonne ? ['stop', 'Arrêter']
+      : m?.fini ? ['reset', 'Relancer'] : m ? ['play', 'Reprendre'] : ['play', 'Démarrer'];
+    const lecture = bloc.querySelector('#m-lecture');
+    if (lecture.dataset.etat !== texte) {
+      lecture.dataset.etat = texte;
+      lecture.innerHTML = `${icon(ic, ic === 'reset' ? 'trait' : '')}${texte}`;
+    }
     corps.querySelector('#m-reset').hidden = !m;
   }
 

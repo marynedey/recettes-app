@@ -1072,3 +1072,84 @@ test('modifier : réordonner les photos en les faisant glisser', async () => {
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
+
+test('minuteur terminé : sonnerie en boucle, « Arrêter » et « +1 min » (app, bandeau, notification)', async () => {
+  depotInitial();
+  await nouvellePage({ horloge: true });
+  await page.evaluate(() => { window.vibrations = 0; navigator.vibrate = () => { window.vibrations++; return true; }; });
+  const notifications = () => page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications())
+    .map(n => ({ tag: n.tag, titre: n.title, boutons: n.actions.map(a => a.title) })));
+  await page.goto(BASE + '#/cuisine/tarte-tatin');
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  for (let k = 0; k < 5; k++) await page.click('#suiv');
+  assert.equal((await page.textContent('#m-lecture')).trim(), 'Démarrer');
+  await page.click('#m-lecture');
+  assert.equal((await page.textContent('#m-lecture')).trim(), 'Pause');
+  await page.click('#m-lecture');
+  assert.equal((await page.textContent('#m-lecture')).trim(), 'Reprendre');
+  await page.click('#m-lecture');
+
+  // Fin : dans le mode cuisine, le minuteur propose « Arrêter » (pas de bandeau par-dessus) ;
+  // sur les autres écrans, un bandeau. La sonnerie se répète ; la notification a deux boutons.
+  await page.clock.fastForward('12:00');
+  await page.waitForTimeout(300);
+  assert.equal((await page.textContent('#m-lecture')).trim(), 'Arrêter', 'le bouton dit ce qu\'il fait');
+  assert.equal(await page.locator('.alarme').count(), 0);
+  await page.goto(BASE + '#/');
+  await page.locator('.alarme').waitFor();
+  assert.match(await page.textContent('.alarme'), /C'est prêt !.*Tarte tatin · étape 6/s);
+  const avant = await page.evaluate(() => window.vibrations);
+  await page.clock.runFor(8000); // (fastForward ne déclenche chaque intervalle qu'une fois)
+  assert.ok(await page.evaluate(() => window.vibrations) >= avant + 2, 'ça sonne encore');
+  const n = (await notifications()).find(x => x.tag === 'tarte-tatin|5|0');
+  assert.deepEqual(n.boutons, ['Arrêter', '+1 min']);
+
+  // « +1 min » depuis le bandeau : il repart pour une minute.
+  await page.click('.alarme [data-a=plus1]');
+  assert.equal(await page.locator('.alarme').count(), 0);
+  await page.goBack();
+  await page.locator('#t-bloc').waitFor();
+  assert.match(await page.textContent('#t-bloc'), /^(1:00|0:59)$/);
+  await page.clock.fastForward('01:01');
+  await page.waitForTimeout(300);
+  assert.equal((await page.textContent('#m-lecture')).trim(), 'Arrêter');
+
+  // « Arrêter » depuis le minuteur : plus de bandeau ni de sonnerie, « Relancer » proposé.
+  await page.click('#m-lecture');
+  assert.equal(await page.locator('.alarme').count(), 0);
+  assert.equal((await page.textContent('#m-lecture')).trim(), 'Relancer');
+  assert.equal(await page.textContent('#lib'), 'Terminé !');
+  const apres = await page.evaluate(() => window.vibrations);
+  await page.clock.runFor(10000);
+  assert.equal(await page.evaluate(() => window.vibrations), apres, 'silence');
+  assert.equal((await notifications()).filter(x => x.tag === 'tarte-tatin|5|0').length, 0, 'notification retirée');
+
+  // Bouton « Arrêter » d'une notification, app ouverte : le service worker prévient l'app.
+  await page.click('#prec'); await page.click('#prec'); await page.click('#prec'); await page.click('#prec'); await page.click('#prec');
+  assert.match(await etape(), /Étape 1/);
+  await page.click('#m-lecture');
+  await page.clock.fastForward('30:00');
+  await page.waitForTimeout(300);
+  assert.equal((await page.textContent('#m-lecture')).trim(), 'Arrêter');
+  const [sw] = ctx.serviceWorkers();
+  await sw.evaluate(() => actionMinuteur('arreter', 'tarte-tatin|0|0'));
+  await page.waitForTimeout(300);
+  assert.equal((await page.textContent('#m-lecture')).trim(), 'Relancer');
+
+  // App fermée : le service worker a noté « +1 min » ; l'app l'applique à sa réouverture.
+  await page.click('#m-lecture'); // relance 30 min
+  await page.clock.fastForward('30:00');
+  await page.waitForTimeout(300);
+  assert.equal((await page.textContent('#m-lecture')).trim(), 'Arrêter');
+  await page.evaluate(async () => {
+    const c = await caches.open('mr-donnees');
+    await c.put(new URL('actions.json', document.baseURI).href, new Response(JSON.stringify([{ id: 'tarte-tatin|0|0', action: 'plus1', fin: Date.now() + 60e3 }])));
+  });
+  await page.reload();
+  await page.locator('#t-bloc').waitFor();
+  await page.waitForTimeout(300);
+  assert.equal((await page.textContent('#m-lecture')).trim(), 'Pause', 'il tourne de nouveau');
+  assert.match(await page.textContent('#t-bloc'), /^(1:00|0:59)$/);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});

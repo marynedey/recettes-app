@@ -8,7 +8,8 @@ que l'app ouverte.
 
 1. Quand un minuteur démarre, l'app lui dit : « préviens ce téléphone à 19 h 42 ».
    Pause, ±1 min, « Recommencer » : l'app met à jour ou annule.
-2. À l'heure dite, il envoie une notification **vide** au téléphone (Web Push).
+2. À l'heure dite, il envoie une notification **vide** au téléphone (Web Push), puis la
+   renvoie toutes les 30 s pendant 2 min (comme un réveil), jusqu'à « Arrêter » ou « +1 min ».
 3. Le service worker de l'app la reçoit et retrouve lui-même quel minuteur est
    terminé (« Tarte tatin · étape 6 : c'est prêt ! »).
 
