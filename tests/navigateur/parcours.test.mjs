@@ -62,6 +62,8 @@ async function fauxGitHub(route) {
     }
     const corps = JSON.parse(req.postData() || '{}');
     if (req.method() === 'PUT') {
+      // Comme l'API GitHub : modifier un fichier existant exige la version (sha) qu'on modifie.
+      if (fichiers.has(chemin) && corps.sha !== sha(fichiers.get(chemin))) return json({ message: 'sha ne correspond pas' }, 409);
       const b = Buffer.from(corps.content, 'base64');
       fichiers.set(chemin, b);
       ecritures.push({ methode: 'PUT', chemin, message: corps.message, contenu: b.toString('utf8') });
@@ -874,6 +876,7 @@ test('réglages : erreurs claires, version affichée, app non configurée', asyn
   await page.waitForURL(/#\/$/);
 
   await page.goto(BASE + '#/reglages');
+  await page.locator('#f-serveur').waitFor();
   const version = readFileSync(join(RACINE, 'js/views/reglages.js'), 'utf8').match(/VERSION = '([\d.]+)'/)[1];
   assert.match(await page.textContent('.page'), new RegExp(`version ${version.replace(/\./g, '\\.')}`));
 
@@ -1344,5 +1347,50 @@ test('supprimer une recette depuis « Modifier »', async () => {
   await page.locator('.carte').first().waitFor();
   assert.ok(!(await titresAccueil()).includes('Tarte tatin'));
   assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('courses partagées : deux téléphones, la même liste ; « Retirer les articles cochés »', async () => {
+  depotInitial();
+  await nouvellePage();
+  const telephone1 = page;
+  const article = (p, nom) => p.locator('.article', { has: p.locator('.art-nom', { hasText: new RegExp(`^${nom}$`) }) });
+  await telephone1.goto(BASE + '#/courses');
+  await telephone1.fill('#ajout-article input', '2 citrons');
+  await telephone1.press('#ajout-article input', 'Enter');
+  await telephone1.waitForTimeout(1500); // envoi regroupé
+  assert.match(fichiers.get('courses.json')?.toString() || '', /2 citrons/, 'liste écrite dans le dépôt');
+
+  // Un deuxième téléphone (autre jeton, même dépôt) voit la liste et la complète.
+  const ctx2 = await navigateur.newContext({ ...devices['Pixel 7'], locale: 'fr-FR' });
+  await ctx2.route('https://api.github.com/**', fauxGitHub);
+  const telephone2 = await ctx2.newPage();
+  telephone2.on('pageerror', e => erreurs.push(e.message));
+  await telephone2.goto(BASE);
+  await telephone2.evaluate(([jeton, depot]) => localStorage.setItem('mr.reglages', JSON.stringify({ jeton, depot })), [JETON, DEPOT]);
+  await telephone2.goto(BASE + '?t=2#/courses');
+  await article(telephone2, 'Citrons').waitFor();
+  await telephone2.fill('#ajout-article input', 'lait');
+  await telephone2.press('#ajout-article input', 'Enter');
+  await article(telephone2, 'Citrons').locator('.art-case').click(); // acheté
+  await telephone2.waitForTimeout(1500);
+
+  // Le premier téléphone le voit à son prochain relevé (toutes les 8 s sur l'écran Courses).
+  await article(telephone1, 'Lait').waitFor({ timeout: 12000 });
+  assert.match(await article(telephone1, 'Citrons').getAttribute('class'), /fait/, 'la case cochée est partagée');
+
+  // « Retirer les articles cochés » : les cochés disparaissent, chez tout le monde ; annulable.
+  await telephone1.click('#retirer-coches');
+  assert.equal(await article(telephone1, 'Citrons').count(), 0);
+  assert.equal(await article(telephone1, 'Lait').count(), 1);
+  await telephone1.click('.toast button.toast-action');
+  assert.equal(await article(telephone1, 'Citrons').count(), 1, 'annuler le remet');
+  await telephone1.click('#retirer-coches');
+  await telephone1.waitForTimeout(1500);
+  await telephone2.reload();
+  await article(telephone2, 'Lait').waitFor();
+  assert.equal(await article(telephone2, 'Citrons').count(), 0);
+  assert.deepEqual(erreurs, []);
+  await ctx2.close();
   await ctx.close();
 });

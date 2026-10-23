@@ -2,6 +2,7 @@
 
 import { esc, icon, toast } from './ui.js';
 import * as M from './minuteurs.js';
+import * as C from './courses.js';
 import * as store from './store.js';
 import { accueil, listeRecettes, favorisVue } from './views/listes.js';
 import { courses } from './views/courses.js';
@@ -145,11 +146,26 @@ function rendreSiListe() {
 store.onChange(rendreSiListe);
 window.addEventListener('mr:imports', suivreImports);
 
+// Liste de courses partagée : fichier courses.json du dépôt des recettes.
+C.brancherDepot({
+  lire: async () => {
+    if (!store.estConfigure()) return null;
+    const f = await store.github().getFile('courses.json');
+    return f && { texte: f.text, sha: f.sha };
+  },
+  ecrire: (texte, sha) => {
+    if (!store.estConfigure()) throw new Error('Pas de dépôt configuré');
+    return store.github().putFile('courses.json', texte, 'Courses : mise à jour de la liste', sha);
+  },
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) C.synchroniser().catch(() => {}); });
+
 async function demarrer() {
   partageEntrant();
   rendre();
   if (store.estConfigure()) {
     store.synchroniser().catch(e => { if (e.status !== 0) toast(e.message, 4000); });
+    C.synchroniser().catch(() => {});
     suivreImports();
   }
   if ('serviceWorker' in navigator) {
