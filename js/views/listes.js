@@ -2,7 +2,7 @@
 
 import * as store from '../store.js';
 import { CATEGORIES, sansAccents } from '../format.js';
-import { esc, icon, carteRecette, ligneRecette, chargerPhotos, tempsTotal } from '../ui.js';
+import { esc, icon, carteRecette, ligneRecette, chargerPhotos, tempsTotal, toast } from '../ui.js';
 
 const norm = s => sansAccents(s).toLowerCase();
 
@@ -25,7 +25,8 @@ function bannieres() {
   let html = '';
   for (const imp of store.importsEnAttente()) {
     html += `<div class="banniere"><span class="spinner"></span><div class="txt"><strong>Import en cours…</strong>
-      <span class="aide">${esc(new URL(imp.url).hostname.replace(/^www\./, ''))} · environ 1 minute</span></div></div>`;
+      <span class="aide">${esc(new URL(imp.url).hostname.replace(/^www\./, ''))} · environ 1 minute</span></div>
+      <button class="btn-rond" data-annuler="${esc(imp.id)}" aria-label="Annuler l'import">${icon('x')}</button></div>`;
   }
   const err = sessionStorage.getItem('mr.importErreur');
   if (err) {
@@ -39,6 +40,12 @@ function bannieres() {
 }
 
 function brancherBannieres(root) {
+  root.querySelectorAll('[data-annuler]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Annuler cet import ?')) return;
+    b.closest('.banniere').remove();
+    try { await store.annulerImport(b.dataset.annuler); toast('Import annulé'); }
+    catch (err) { toast(err.message, 4000); }
+  }));
   root.querySelectorAll('[data-oublier]').forEach(b => b.addEventListener('click', () => {
     sessionStorage.removeItem('mr.importErreur');
     if (b.tagName === 'BUTTON') b.closest('.banniere').remove();

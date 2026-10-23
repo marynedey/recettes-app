@@ -124,7 +124,7 @@ function partageEntrant() {
 // Suivi des imports en attente.
 let suiviImports = null;
 function suivreImports() {
-  if (suiviImports || !store.importsEnAttente().length) return;
+  if (suiviImports || !store.importsASuivre().length) return;
   suiviImports = setInterval(async () => {
     if (document.hidden) return;
     const termines = await store.verifierImports().catch(() => []);
@@ -133,7 +133,7 @@ function suivreImports() {
       else sessionStorage.setItem('mr.importErreur', JSON.stringify(t));
     }
     if (termines.length) rendreSiListe();
-    if (!store.importsEnAttente().length) { clearInterval(suiviImports); suiviImports = null; }
+    if (!store.importsASuivre().length) { clearInterval(suiviImports); suiviImports = null; }
   }, 8000);
 }
 

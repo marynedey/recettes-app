@@ -1284,3 +1284,65 @@ test('courses : le retour Android ferme « Quelles recettes ? » sans quitter le
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
+
+test('import annulé : la demande est retirée ; annulé trop tard, la recette créée est supprimée', async () => {
+  depotInitial();
+  await nouvellePage({ horloge: true });
+  // Annulé avant que GitHub ne s'en occupe : la demande disparaît du dépôt.
+  await page.goto(BASE + '#/ajouter');
+  await page.fill('[name=url]', 'https://www.marmiton.org/recettes/a.aspx');
+  await page.click('#go');
+  await page.locator('.banniere [data-annuler]').waitFor();
+  const demande = ecritures.find(w => w.chemin.startsWith('import/a-traiter/')).chemin;
+  page.once('dialog', d => d.accept());
+  await page.click('.banniere [data-annuler]');
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('.banniere').count(), 0);
+  assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === demande), 'demande retirée');
+  await page.reload();
+  await page.locator('.carte').first().waitFor();
+  assert.equal(await page.locator('.banniere').count(), 0, 'toujours annulé après rechargement');
+
+  // Annulé alors que GitHub l'avait déjà traité : la recette arrivée ensuite est supprimée, sans message.
+  await page.goto(BASE + '#/ajouter');
+  await page.fill('[name=url]', 'https://www.marmiton.org/recettes/b.aspx');
+  await page.click('#go');
+  await page.locator('.banniere [data-annuler]').waitFor();
+  const id = ecritures.filter(w => w.chemin.startsWith('import/a-traiter/')).at(-1).chemin.match(/a-traiter\/(.+)\.json/)[1];
+  fichiers.delete(`import/a-traiter/${id}.json`); // déjà pris par le workflow
+  fichiers.set('recettes/gaufres.md', Buffer.from('---\ntitre: Gaufres\n---\n## Ingrédients\n- 250 g farine\n\n## Étapes\n1. Cuire.\n'));
+  fichiers.set(`import/resultats/${id}.json`, Buffer.from(JSON.stringify({ statut: 'ok', slug: 'gaufres', titre: 'Gaufres' })));
+  page.once('dialog', d => d.accept());
+  await page.click('.banniere [data-annuler]');
+  await page.clock.fastForward(9000);
+  await page.waitForTimeout(1000);
+  assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === 'recettes/gaufres.md'), 'recette importée retirée');
+  assert.ok(!fichiers.has(`import/resultats/${id}.json`), 'résultat nettoyé');
+  assert.doesNotMatch(await page.textContent('body'), /« Gaufres » importée/);
+  assert.equal(await page.locator('.carte h3', { hasText: 'Gaufres' }).count(), 0);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('supprimer une recette depuis « Modifier »', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/modifier/tarte-tatin');
+  await page.locator('#suppr-recette').scrollIntoViewIfNeeded();
+  // Le bouton n'est pas caché sous la barre Annuler / Enregistrer.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  const b = await page.locator('#suppr-recette').boundingBox();
+  const barre = await page.locator('.barre-bas').boundingBox();
+  assert.ok(b.y + b.height <= barre.y + 1, 'visible au-dessus de la barre du bas');
+  page.once('dialog', d => d.dismiss());
+  await page.click('#suppr-recette');
+  assert.equal(ecritures.length, 0, 'annuler ne supprime rien');
+  page.once('dialog', d => d.accept());
+  await page.click('#suppr-recette');
+  await page.waitForURL(/#\/$/);
+  assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === 'recettes/tarte-tatin.md'));
+  await page.locator('.carte').first().waitFor();
+  assert.ok(!(await titresAccueil()).includes('Tarte tatin'));
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});

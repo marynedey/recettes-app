@@ -215,6 +215,14 @@ export function editer(root, { params }) {
     <h1 class="titre-page">Modifier</h1></div>`;
   root.querySelector('#retour').onclick = () => retour(`#/recette/${encodeURIComponent(r.slug)}`);
   formulaire(root, r, { onAnnuler: () => retour(`#/recette/${encodeURIComponent(r.slug)}`) });
+  root.insertAdjacentHTML('beforeend', `<div class="zone-suppr">
+    <button type="button" class="bouton danger large" id="suppr-recette">${icon('trash')}Supprimer la recette</button></div>`);
+  root.querySelector('#suppr-recette').onclick = async e => {
+    if (!confirm(`Supprimer définitivement « ${orig.meta.titre} » ?`)) return;
+    e.currentTarget.disabled = true;
+    try { await store.supprimerRecette(orig.slug); toast('Recette supprimée'); location.replace('#/'); }
+    catch (err) { e.currentTarget.disabled = false; alert(err.message); }
+  };
 }
 
 export function ajouter(root, { query }) {

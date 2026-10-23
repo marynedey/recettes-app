@@ -267,14 +267,17 @@ export function marquerCuisinee(slug) {
 
 /* ---------- import par lien (traité par GitHub Actions) ---------- */
 
-export const importsEnAttente = () => lire(K.imports, []);
+// Imports annulés : gardés (annule: true) jusqu'à leur résultat, pour effacer la recette s'ils aboutissent quand même.
+const tousImports = () => lire(K.imports, []);
+export const importsEnAttente = () => tousImports().filter(i => !i.annule);
+export const importsASuivre = () => tousImports();
 const setImports = l => ecrire(K.imports, l);
 
 export async function demanderImport(url) {
   const id = `${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${Math.random().toString(36).slice(2, 7)}`;
   const contenu = JSON.stringify({ url, demande: new Date().toISOString() }, null, 2) + '\n';
   await github().putFile(`import/a-traiter/${id}.json`, contenu, `Import demandé : ${url}`);
-  setImports([...importsEnAttente(), { id, url, depuis: Date.now() }]);
+  setImports([...tousImports(), { id, url, depuis: Date.now() }]);
   return id;
 }
 
@@ -283,30 +286,44 @@ export async function demanderImport(url) {
  * Renvoie la liste des imports terminés : { id, url, statut: 'ok'|'erreur', slug?, titre?, message? }.
  */
 export async function verifierImports() {
-  const enCours = importsEnAttente();
+  const enCours = tousImports();
   if (!enCours.length || !estConfigure()) return [];
   const api = github();
   const termines = [];
   const restants = [];
+  const aEffacer = [];
   for (const imp of enCours) {
     const res = await api.getFile(`import/resultats/${imp.id}.json`).catch(() => null);
     if (res) {
       let data = {};
       try { data = JSON.parse(res.text); } catch { data = { statut: 'erreur', message: 'Résultat illisible.' }; }
-      termines.push({ ...imp, ...data });
+      if (!imp.annule) termines.push({ ...imp, ...data });
+      else if (data.statut === 'ok' && data.slug) aEffacer.push(data.slug); // annulé trop tard : on retire la recette
       api.deleteFile(`import/resultats/${imp.id}.json`, res.sha, 'Nettoyage résultat import').catch(() => {});
     } else if (Date.now() - imp.depuis > 6 * 60 * 1000) {
-      termines.push({ ...imp, statut: 'erreur', message: 'L\'import n\'a pas abouti à temps (le workflow GitHub Actions est-il activé ?).' });
+      if (!imp.annule) termines.push({ ...imp, statut: 'erreur', message: 'L\'import n\'a pas abouti à temps (le workflow GitHub Actions est-il activé ?).' });
     } else {
       restants.push(imp);
     }
   }
   setImports(restants);
-  if (termines.some(t => t.statut === 'ok')) await synchroniser().catch(() => {});
+  if (termines.some(t => t.statut === 'ok') || aEffacer.length) await synchroniser().catch(() => {});
+  for (const slug of aEffacer) await supprimerRecette(slug).catch(() => {});
   return termines;
 }
 
-export function oublierImport(id) { setImports(importsEnAttente().filter(i => i.id !== id)); }
+export function oublierImport(id) { setImports(tousImports().filter(i => i.id !== id)); }
+
+/**
+ * Annule un import : il disparaît tout de suite. La demande est retirée du dépôt si GitHub
+ * ne l'a pas encore prise ; sinon, la recette créée sera supprimée dès son arrivée.
+ */
+export async function annulerImport(id) {
+  setImports(tousImports().map(i => (i.id === id ? { ...i, annule: true } : i)));
+  const api = github();
+  const demande = await api.getFile(`import/a-traiter/${id}.json`).catch(() => null);
+  if (demande) await api.deleteFile(`import/a-traiter/${id}.json`, demande.sha, 'Import annulé').catch(() => {});
+}
 
 export function viderCache() {
   cache = {}; arbre = null;
