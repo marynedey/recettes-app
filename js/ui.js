@@ -176,8 +176,9 @@ export function ouvrirVisionneuse(chemins, depart = 0) {
 
 /**
  * Onglets côte à côte dans une piste qu'on fait glisser au doigt (fiche, nouvelle recette).
- * Le contenu suit le doigt, puis se cale vite sur l'onglet voulu (pas d'aimantation native,
- * dont le ralenti au début et à la fin est trop marqué). La piste prend la hauteur de l'onglet affiché.
+ * Défilement natif d'Android (fluide, l'onglet suit le doigt) avec aimantation CSS.
+ * La hauteur de la piste (= onglet affiché) ne change qu'une fois le glissement terminé :
+ * la modifier pendant le défilement le rendait lent et saccadé.
  * Renvoie ouvrir(onglet, anime).
  */
 export function ongletsGlissants(root, piste, { depart, surChangement = () => {} }) {
@@ -185,73 +186,41 @@ export function ongletsGlissants(root, piste, { depart, surChangement = () => {}
   const ordre = panneaux.map(p => p.dataset.o);
   const onglets = root.querySelectorAll('[role=tab]');
   let i = Math.max(0, ordre.indexOf(depart));
-  let anim = null;
 
   const ajusterHauteur = () => { piste.style.height = `${panneaux[i].offsetHeight}px`; };
   const marquer = n => {
+    if (n < 0 || n >= ordre.length) return;
+    const change = n !== i;
     i = n;
     onglets.forEach(b => b.setAttribute('aria-selected', b.dataset.o === ordre[i]));
-    ajusterHauteur();
-    surChangement(ordre[i]);
+    if (change) surChangement(ordre[i]);
   };
-  const animer = (cible, duree) => {
-    cancelAnimationFrame(anim);
-    const de = piste.scrollLeft, t0 = performance.now();
-    const pas = t => {
-      const k = Math.min(1, (t - t0) / duree);
-      piste.scrollLeft = de + (cible - de) * (1 - (1 - k) ** 3); // départ franc, arrivée douce et courte
-      if (k < 1) anim = requestAnimationFrame(pas);
-    };
-    anim = requestAnimationFrame(pas);
-  };
+  let vers = null; // onglet visé par un toucher d'onglet (défilement animé en cours)
   const ouvrir = (o, anime = true) => {
     const n = typeof o === 'number' ? o : ordre.indexOf(o);
-    marquer(Math.max(0, Math.min(ordre.length - 1, n)));
-    const cible = i * piste.clientWidth;
-    if (anime) animer(cible, 220); else { cancelAnimationFrame(anim); piste.scrollLeft = cible; }
+    marquer(n);
+    vers = anime ? i : null;
+    // L'onglet d'arrivée est plus haut : on agrandit tout de suite pour qu'il ne soit pas coupé.
+    if (panneaux[i].offsetHeight > piste.offsetHeight) ajusterHauteur();
+    piste.scrollTo({ left: i * piste.clientWidth, behavior: anime ? 'smooth' : 'instant' });
+    if (!anime) ajusterHauteur();
   };
   onglets.forEach(b => b.addEventListener('click', () => ouvrir(b.dataset.o)));
 
-  // Glissement : on ne prend la main que pour un geste nettement horizontal ;
-  // pas sur les photos, qu'on réordonne en les faisant glisser.
-  let doigt = null, x0 = 0, y0 = 0, s0 = 0, mode = null, xPrec = 0, tPrec = 0, vitesse = 0, bloquerClic = 0;
-  piste.addEventListener('pointerdown', e => {
-    if (doigt !== null || e.button > 0 || e.target.closest('.photos-liste')) return;
-    doigt = e.pointerId; x0 = xPrec = e.clientX; y0 = e.clientY; tPrec = e.timeStamp; s0 = piste.scrollLeft; mode = null; vitesse = 0;
-  });
-  piste.addEventListener('pointermove', e => {
-    if (e.pointerId !== doigt) return;
-    const dx = e.clientX - x0, dy = e.clientY - y0;
-    if (!mode && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
-      mode = 'glisse';
-      cancelAnimationFrame(anim);
-      piste.setPointerCapture(doigt);
-    } else if (!mode && Math.abs(dy) > 8) mode = 'defile';
-    if (mode !== 'glisse') return;
-    piste.scrollLeft = s0 - dx;
-    if (e.timeStamp > tPrec) vitesse = (e.clientX - xPrec) / (e.timeStamp - tPrec);
-    xPrec = e.clientX; tPrec = e.timeStamp;
-  });
-  const fin = e => {
-    if (e.pointerId !== doigt) return;
-    doigt = null;
-    if (mode !== 'glisse') return;
-    bloquerClic = Date.now();
-    const dx = e.clientX - x0, seuil = piste.clientWidth * 0.2;
-    let n = i;
-    if (e.type === 'pointerup' && (dx < -seuil || vitesse < -0.35)) n = i + 1;
-    else if (e.type === 'pointerup' && (dx > seuil || vitesse > 0.35)) n = i - 1;
-    ouvrir(n);
-  };
-  piste.addEventListener('pointerup', fin);
-  piste.addEventListener('pointercancel', fin);
-  // Le doigt levé après un glissement ne doit pas cocher un ingrédient ou suivre un lien.
-  piste.addEventListener('click', e => { if (Date.now() - bloquerClic < 400) { e.preventDefault(); e.stopPropagation(); } }, true);
+  // Pendant le glissement : seule la pastille suit (aucun changement de mise en page).
+  let fin = null;
+  const auRepos = () => { vers = null; marquer(Math.round(piste.scrollLeft / piste.clientWidth)); ajusterHauteur(); };
+  piste.addEventListener('scroll', () => {
+    if (vers === null) marquer(Math.round(piste.scrollLeft / piste.clientWidth));
+    clearTimeout(fin);
+    fin = setTimeout(auRepos, 150); // navigateurs sans « scrollend »
+  }, { passive: true });
+  piste.addEventListener('scrollend', () => { clearTimeout(fin); auRepos(); });
 
   // Hauteur à jour quel que soit l'onglet qui change de taille (police chargée, texte agrandi…).
-  const observateur = new ResizeObserver(() => { ajusterHauteur(); if (!anim && doigt === null) piste.scrollLeft = i * piste.clientWidth; });
+  const observateur = new ResizeObserver(ajusterHauteur);
   panneaux.forEach(p => observateur.observe(p));
-  observateur.observe(piste);
   ouvrir(i, false);
+  surChangement(ordre[i]);
   return ouvrir;
 }
