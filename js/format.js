@@ -3,7 +3,7 @@
 // Module sans dépendance au navigateur : testable avec `node --test`.
 
 export const CATEGORIES = ['Plats', 'Desserts', 'Entrées', 'Végé', 'Apéro', 'Boissons', 'Petit-déj', 'Goûter', 'Sauces', 'Pains'];
-const META_ORDER = ['titre', 'categorie', 'tags', 'portions', 'preparation', 'cuisson', 'repos', 'difficulte', 'photo', 'photos', 'source', 'ajoutee'];
+const META_ORDER = ['titre', 'categorie', 'tags', 'portions', 'moule', 'preparation', 'cuisson', 'repos', 'difficulte', 'photo', 'photos', 'source', 'ajoutee'];
 
 /* ---------- utilitaires ---------- */
 
@@ -239,6 +239,7 @@ function sectionKey(title) {
   if (t.startsWith('ingredient')) return 'ingredients';
   if (t.startsWith('etape') || t.startsWith('preparation') || t.startsWith('instruction')) return 'etapes';
   if (t.startsWith('note') || t.startsWith('astuce') || t.startsWith('conseil')) return 'notes';
+  if (t.startsWith('carnet')) return 'carnet';
   return null;
 }
 
@@ -263,7 +264,7 @@ export function parseRecipe(text, path = '') {
   let meta = {}, body = text;
   const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (fm) { meta = parseFrontMatter(fm[1]); body = text.slice(fm[0].length); }
-  const sections = { ingredients: [], etapes: [], notes: [] };
+  const sections = { ingredients: [], etapes: [], notes: [], carnet: [] };
   const autres = [];
   let cible = null;
   for (const line of body.split(/\r?\n/)) {
@@ -283,7 +284,8 @@ export function parseRecipe(text, path = '') {
     .map(g => ({ group: g.group, items: g.items.map(parseIngredient) }));
   const etapes = parseGroupedList(sections.etapes, true);
   const notes = [...sections.notes, ...(autres.length ? ['', ...autres] : [])].join('\n').trim();
-  return { slug, path, meta: { titre: slug, ...meta }, ingredients, etapes, notes };
+  const carnet = sections.carnet.map(lireNoteCarnet).filter(Boolean);
+  return { slug, path, meta: { titre: slug, ...meta }, ingredients, etapes, notes, carnet };
 }
 
 export function serializeRecipe(r) {
@@ -300,8 +302,60 @@ export function serializeRecipe(r) {
     for (const s of g.items) out.push(`${n++}. ${s}`);
   }
   if (r.notes && r.notes.trim()) out.push('', '## Notes', '', r.notes.trim());
+  if (r.carnet?.length) out.push('', '## Carnet', '', ...r.carnet.map(ecrireNoteCarnet));
   return out.join('\n').replace(/\n{3,}/g, '\n\n') + '\n';
 }
+
+/* ---------- carnet de la recette ---------- */
+
+// Une ligne par fois cuisinée, la plus récente en premier :
+// « - 2026-10-12 · Réussi · moule rond 28 cm · four 170 °C · 12 pers. : Pousse 1 h 30 près du radiateur. »
+export const AVIS = ['Réussi', 'À ajuster', 'Raté'];
+
+export function lireNoteCarnet(ligne) {
+  const m = ligne.match(/^\s*[-*+]\s+(\d{4}-\d{2}-\d{2})(.*)$/);
+  if (!m) return null;
+  let reste = m[2];
+  let texte = '';
+  const deuxPoints = reste.indexOf(' : ');
+  if (deuxPoints !== -1) { texte = reste.slice(deuxPoints + 3).trim(); reste = reste.slice(0, deuxPoints); }
+  const note = { date: m[1], avis: '', moule: '', four: '', personnes: '', texte };
+  for (const morceau of reste.split(' · ').map(s => s.trim()).filter(Boolean)) {
+    if (/^moule\s/i.test(morceau)) note.moule = morceau.replace(/^moule\s+/i, '');
+    else if (/^four\s/i.test(morceau)) note.four = morceau.replace(/^four\s+/i, '');
+    else if (/^\d+\s*pers\.?$/i.test(morceau)) note.personnes = parseInt(morceau, 10);
+    else note.avis = morceau;
+  }
+  return note;
+}
+
+export function ecrireNoteCarnet(n) {
+  const morceaux = [n.date, n.avis, n.moule && `moule ${n.moule}`, n.four && `four ${n.four}`, n.personnes && `${n.personnes} pers.`].filter(Boolean);
+  return `- ${morceaux.join(' · ')}${n.texte ? ` : ${n.texte.replace(/\s+/g, ' ').trim()}` : ''}`;
+}
+
+/* ---------- moule ---------- */
+
+// « rond 24 cm », « carré 20 », « rectangle 30 x 20 cm », « Ø 24 cm ».
+export function lireMoule(s) {
+  const t = sansAccents(String(s || '')).toLowerCase().replace(',', '.');
+  const n = (t.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+  if (!n.length) return null;
+  if (/rect/.test(t) || n.length >= 2) return { forme: 'rectangle', a: n[0], b: n[1] ?? n[0] };
+  if (/carr/.test(t)) return { forme: 'carré', a: n[0], b: n[0] };
+  return { forme: 'rond', a: n[0], b: n[0] };
+}
+
+export const surfaceMoule = m => (m.forme === 'rond' ? Math.PI * (m.a / 2) ** 2 : m.a * m.b);
+
+export function texteMoule(m) {
+  const nb = x => String(x).replace('.', ',');
+  if (m.forme === 'rectangle') return `rectangle ${nb(m.a)} x ${nb(m.b)} cm`;
+  return `${m.forme} ${nb(m.a)} cm`;
+}
+
+/** Facteur des quantités pour passer du moule de la recette au mien (rapport des surfaces). */
+export const facteurMoule = (recette, mien) => surfaceMoule(mien) / surfaceMoule(recette);
 
 /* ---------- aides pour l'affichage ---------- */
 
@@ -392,7 +446,7 @@ export function emptyRecipe() {
   return {
     slug: '', path: '',
     meta: { titre: '', categorie: 'Plats', tags: [], portions: 4, preparation: '', cuisson: '', repos: '', source: '', ajoutee: new Date().toISOString().slice(0, 10) },
-    ingredients: [], etapes: [], notes: '',
+    ingredients: [], etapes: [], notes: '', carnet: [],
   };
 }
 

@@ -28,7 +28,8 @@ export function cuisine(root, { params, query }) {
   if (!steps.length) { location.replace(`#/recette/${encodeURIComponent(r.slug)}`); return; }
   const base = Number(r.meta.portions) || 0;
   const portions = Number(query.get('p')) || base;
-  const facteur = base ? portions / base : 1;
+  // « f » : facteur du moule choisi sur la fiche (sinon, d'après le nombre de personnes).
+  const facteur = Number(query.get('f')) || (base ? portions / base : 1);
   const cle = 'mr.cuisine.' + r.slug;
   const etapeDemandee = query.has('e') ? Number(query.get('e')) : null;
   let i = Math.min(etapeDemandee ?? (Number(sessionStorage.getItem(cle)) || 0), steps.length - 1);
@@ -219,6 +220,8 @@ export function cuisine(root, { params, query }) {
       // Depuis la fiche, « retour » mènera à l'accueil et non à nouveau au mode cuisine (cf. app.js).
       sessionStorage.setItem('mr.apresCuisine', `#/recette/${encodeURIComponent(r.slug)}`);
       quitter();
+      toast('Bon appétit !', 8000, { texte: 'Noter dans le carnet',
+        faire: () => location.replace(`#/recette/${encodeURIComponent(r.slug)}?carnet=1`) });
       return;
     }
     allerA(i + d);

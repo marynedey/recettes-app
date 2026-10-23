@@ -23,7 +23,7 @@ App de recettes perso, pensée mobile (Android), en français. Maquette validée
 | `js/push.js` | serveur des minuteurs (adresse dans les réglages, `serveur`) : abonnement Web Push, `PUT`/`DELETE /minuteurs/<appareil>|<id>` quand un minuteur démarre / s'arrête. Le `push` reçu par `sw.js` est vide : le SW retrouve le minuteur terminé dans la copie. |
 | `js/courses.js` | liste de courses : recettes prévues + nombre de personnes, ingrédients additionnés (g/kg, mL/cL/L, c. à café/soupe ; noms regroupés sans « fondu », « froid »…, œ/oe, pluriels), rayons, « j'en ai déjà » → ce qui manque, articles ajoutés à la main (`ajouts`), glisser pour retirer avec « Annuler » (`masques` : un article de recette revient si ses quantités changent) ; la feuille « Quelles recettes ? » a son entrée d'historique (le retour Android la ferme) ; un article à la main sans quantité n'affiche rien, un ingrédient de recette sans quantité « selon la recette » ; gardée dans `localStorage` (`mr.courses`) et **partagée** via `courses.json` du dépôt (toute la famille, un jeton par personne) : chaque modification est une opération (`faire`), mise en attente (`mr.courses.attente`) puis envoyée ; sur conflit (409/422, sha périmé) on relit et on rejoue les opérations ; relevé toutes les 8 s sur l'écran Courses et au retour dans l'app ; « Retirer les articles cochés » (cochés ou « j'en ai assez », annulable) |
 | `js/app.js` | un écran s'ouvre toujours en haut (position retrouvée seulement au retour arrière) ; routeur par ancre (`#/`, `#/recettes`, `#/favoris`, `#/courses`, `#/recette/<slug>`, `#/cuisine/<slug>?p=<portions>`, `#/ajouter`, `#/modifier/<slug>`, `#/reglages`) |
-| `js/views/*.js` | un module par écran (accueil : tri A → Z / plus rapides / récentes / anciennes, retenu dans `mr.tri` ; ajout : « Par lien » et « Saisie manuelle » sur une piste qu'on glisse, comme les onglets d'une fiche ; partage Android avec un lien → `#/ajouter?url=…&auto=1`, l'import part tout seul ; modifier : photos réordonnées par glisser-déposer ; mode cuisine : toucher un ingrédient le grise et le barre, mêmes cases que la fiche (`mr.fiche.<slug>`, `coches`) ; plus de niveau/difficulté : ignoré à la lecture, retiré à l'enregistrement ; « Supprimer la recette » en bas de « Modifier » (et dans l'onglet Notes de la fiche)) |
+| `js/views/*.js` | un module par écran (accueil : tri A → Z / plus rapides / récentes / anciennes, retenu dans `mr.tri` ; ajout : « Par lien » et « Saisie manuelle » sur une piste qu'on glisse, comme les onglets d'une fiche ; partage Android avec un lien → `#/ajouter?url=…&auto=1`, l'import part tout seul ; modifier : photos réordonnées par glisser-déposer ; fiche : « Personnes » ou « Taille du moule » (`etat.mode`, `monMoule`, facteur passé au mode cuisine par `&f=`), « Mon carnet » dans l'onglet Notes (`#/recette/<slug>?carnet=1` ouvre le formulaire ; « Noter dans le carnet » après « Terminé ») ; mode cuisine : toucher un ingrédient le grise et le barre, mêmes cases que la fiche (`mr.fiche.<slug>`, `coches`) ; plus de niveau/difficulté : ignoré à la lecture, retiré à l'enregistrement ; « Supprimer la recette » en bas de « Modifier » (et dans l'onglet Notes de la fiche)) |
 
 Synchronisation : on lit l'arbre git du dépôt (`git/trees?recursive=1`) et on ne télécharge que les blobs dont le sha a changé.
 
@@ -34,6 +34,7 @@ titre: Tarte tatin
 categorie: Desserts       # Plats, Desserts, Entrées, Végé, Apéro, Boissons… (le singulier est accepté)
 tags: [classique, pommes]
 portions: 6
+moule: rond 24 cm         # facultatif (rond/carré/rectangle 30 x 20 cm) : la fiche adapte les quantités à mon moule (rapport des surfaces)
 preparation: 20           # minutes
 cuisson: 55               # minutes
 repos: 30                 # minutes (pousse, frigo, marinade… facultatif)
@@ -53,6 +54,9 @@ ajoutee: 2026-10-22
 
 ## Notes
 …
+
+## Carnet                  (facultatif, écrit depuis l'onglet Notes de la fiche ; la plus récente en premier)
+- 2026-10-12 · Réussi · moule rond 28 cm · four 170 °C · 8 pers. : Pousse 1 h 30 près du radiateur.
 ```
 Quantités parsées (nombre + unité + nom) pour le recalcul selon le nombre de personnes.
 
