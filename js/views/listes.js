@@ -91,6 +91,7 @@ export function accueil(root) {
     </div>
     <label class="recherche">${icon('search')}<span class="sr">Rechercher</span>
       <input type="search" placeholder="Recette, ingrédient…" value="${esc(etat.q)}" enterkeyhint="search"></label>
+    <a class="raccourci-frigo" href="#/frigo">${icon('frigo')}<span><b>Avec ce que j'ai</b><small>Mes ingrédients, et les recettes qui vont avec</small></span>${icon('arrow')}</a>
     <div class="puces" role="group" aria-label="Catégories">${cats.map(c =>
       `<button class="puce" aria-pressed="${c === etat.cat}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>
     <div id="bannieres">${bannieres()}</div>

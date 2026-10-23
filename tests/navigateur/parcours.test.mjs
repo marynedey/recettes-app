@@ -308,7 +308,7 @@ test('aucun écran ne déborde en largeur, même avec le texte agrandi (réglage
   await nouvellePage();
   // Des courses prévues, pour que l'écran Courses ait une liste à afficher.
   await page.evaluate(() => localStorage.setItem('mr.courses', JSON.stringify({ prevues: [{ slug: 'cinnamon-rolls', portions: 12 }, { slug: 'risotto-aux-champignons', portions: 4 }], articles: { farine: { coche: true } } })));
-  const ecrans = ['#/', '#/recettes', '#/recette/cinnamon-rolls', '#/cuisine/cinnamon-rolls', '#/modifier/cinnamon-rolls', '#/ajouter', '#/ajouter?manuel=1', '#/reglages', '#/courses'];
+  const ecrans = ['#/', '#/frigo', '#/recettes', '#/recette/cinnamon-rolls', '#/cuisine/cinnamon-rolls', '#/modifier/cinnamon-rolls', '#/ajouter', '#/ajouter?manuel=1', '#/reglages', '#/courses'];
   for (const ecran of ecrans) {
     await page.goto(BASE + ecran);
     await page.reload(); // repart de tailles de police normales
@@ -1685,6 +1685,46 @@ test('mode cuisine mains libres : désactivé par défaut, commandes après « R
   await page.click('#fermer');
   await page.waitForURL(u => !u.hash.includes('cuisine'));
   assert.equal(await page.evaluate(() => window.__voix.reco.actif), false);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('avec ce que j\'ai : depuis l\'accueil, recettes classées par ce qui manque, placard modifiable', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.click('.raccourci-frigo');
+  await page.waitForURL(/#\/frigo$/);
+  assert.match(await page.textContent('#resultats-frigo'), /Écris ce que tu as/);
+  await page.fill('#mes', 'pommes, beurre, sucre et farine');
+  assert.deepEqual(await page.locator('#puces span').allTextContents(), ['pommes', 'beurre', 'sucre', 'farine']);
+  const lignes = () => page.locator('.ligne-frigo').evaluateAll(ls => ls.map(l => [l.querySelector('h3').textContent, l.querySelector('p').textContent, l.querySelector('.part').textContent]));
+  assert.deepEqual(await lignes(), [
+    ['Tarte tatin', 'Tout est là', '100 %'],
+    ['Cinnamon rolls', 'Il manque : levure boulangère, lait, yaourt nature et 1 autre', '64 %'],
+    ['Risotto aux champignons', 'Il manque : riz arborio, champignons de Paris, oignon et 5 autres', '11 %'],
+  ]);
+  assert.match(await page.textContent('#placard-resume'), /^sel, poivre, eau$/);
+  await sansDebordement('avec ce que j\'ai');
+
+  // Ce que je mets « toujours là » ne compte plus comme manquant.
+  await page.reload();
+  await page.locator('.ligne-frigo').first().waitFor();
+  assert.equal(await page.inputValue('#mes'), 'pommes, beurre, sucre et farine', 'ma liste est retenue');
+  await page.click('.placard summary');
+  await page.fill('#placard', 'sel, poivre, eau, lait, levure');
+  assert.equal((await lignes())[1][1], 'Il manque : yaourt nature, cannelle en poudre');
+
+  // Rien d'utile.
+  await page.fill('#mes', 'chocolat');
+  assert.match(await page.textContent('#resultats-frigo'), /Aucune de mes recettes/);
+  await page.fill('#mes', 'riz');
+  await page.click('.ligne-frigo');
+  await page.waitForURL(/#\/recette\/risotto-aux-champignons$/);
+  await page.goBack();
+  await page.locator('#mes').waitFor();
+  assert.equal(await page.inputValue('#mes'), 'riz');
+  await page.click('#retour');
+  await page.locator('.raccourci-frigo').waitFor();
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

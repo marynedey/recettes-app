@@ -10,6 +10,7 @@ import { fiche } from './views/fiche.js';
 import { cuisine } from './views/cuisine.js';
 import { editer, ajouter } from './views/editer.js';
 import { reglagesVue } from './views/reglages.js';
+import { frigo } from './views/frigo.js';
 
 const app = document.getElementById('app');
 let nettoyage = null;
@@ -24,6 +25,7 @@ const ROUTES = [
   [/^\/ajouter$/, ajouter],
   [/^\/modifier\/([^/]+)$/, editer],
   [/^\/reglages$/, reglagesVue],
+  [/^\/frigo$/, frigo],
 ];
 
 const ONGLETS = [
