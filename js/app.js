@@ -43,8 +43,17 @@ export function parseHash() {
 }
 
 const positions = new Map();
+let dernierRendu = '';
 
 function rendre() {
+  // Après « Terminé » en mode cuisine, on arrive sur la fiche ; si « retour » ramène alors
+  // au mode cuisine de cette recette, on va à l'accueil à la place.
+  const apresCuisine = sessionStorage.getItem('mr.apresCuisine');
+  if (apresCuisine && location.hash !== apresCuisine) {
+    sessionStorage.removeItem('mr.apresCuisine');
+    if (dernierRendu === apresCuisine && location.hash.startsWith('#/cuisine/')) { location.replace('#/'); return; }
+  }
+  dernierRendu = location.hash;
   const { path, query } = parseHash();
   if (nettoyage) { try { nettoyage(); } catch { /* ignore */ } nettoyage = null; }
   for (const [re, vue, onglet] of ROUTES) {
@@ -116,7 +125,14 @@ async function demarrer() {
     });
     // Notification de minuteur touchée : le service worker demande d'aller sur la recette.
     navigator.serviceWorker.addEventListener('message', e => {
-      if (e.data?.aller && location.hash !== e.data.aller) location.hash = e.data.aller;
+      const aller = e.data?.aller;
+      if (!aller || location.hash === aller) return;
+      const m = aller.match(/^#\/cuisine\/([^?]+)\?e=(\d+)/);
+      // Déjà dans le mode cuisine de cette recette : on change juste d'étape
+      // (rouvrir la page empilerait un second historique d'étapes).
+      if (m && location.hash.split('?')[0] === `#/cuisine/${m[1]}`) {
+        window.dispatchEvent(new CustomEvent('mr:etape', { detail: { slug: decodeURIComponent(m[1]), etape: Number(m[2]) } }));
+      } else location.hash = aller;
     });
     navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(e => console.warn('SW', e));
   }

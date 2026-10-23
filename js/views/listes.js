@@ -2,7 +2,7 @@
 
 import * as store from '../store.js';
 import { CATEGORIES, sansAccents } from '../format.js';
-import { esc, icon, carteRecette, ligneRecette, chargerPhotos } from '../ui.js';
+import { esc, icon, carteRecette, ligneRecette, chargerPhotos, tempsTotal } from '../ui.js';
 
 const norm = s => sansAccents(s).toLowerCase();
 
@@ -51,8 +51,26 @@ function nonConfigure() {
     <a class="bouton" href="#/reglages">${icon('settings')}Ouvrir les réglages</a></div>`;
 }
 
+// Tris proposés sur l'accueil (le choix est retenu sur le téléphone).
+const TRIS = [['alpha', 'A → Z'], ['rapide', 'Plus rapides'], ['recente', 'Plus récentes'], ['ancienne', 'Plus anciennes']];
+
+/** Trie la liste sur place. Durée inconnue : en dernier ; à égalité, ordre alphabétique. */
+export function trier(liste, tri) {
+  const alpha = (a, b) => a.meta.titre.localeCompare(b.meta.titre, 'fr');
+  const duree = r => tempsTotal(r) || Infinity;
+  const date = r => String(r.meta.ajoutee || '');
+  const comparer = {
+    rapide: (a, b) => duree(a) - duree(b) || alpha(a, b),
+    recente: (a, b) => date(b).localeCompare(date(a)) || alpha(a, b),
+    ancienne: (a, b) => date(a).localeCompare(date(b)) || alpha(a, b),
+  }[tri] || alpha;
+  return liste.sort(comparer);
+}
+
 export function accueil(root) {
   const etat = JSON.parse(sessionStorage.getItem('mr.filtre') || '{"q":"","cat":"Tout"}');
+  let tri = 'alpha';
+  try { tri = localStorage.getItem('mr.tri') || 'alpha'; } catch { /* stockage indisponible */ }
   const toutes = store.recettes();
   const cats = ['Tout', ...CATEGORIES.filter(c => toutes.some(r => r.meta.categorie === c)),
     ...[...new Set(toutes.map(r => r.meta.categorie))].filter(c => !CATEGORIES.includes(c))];
@@ -78,18 +96,12 @@ export function accueil(root) {
     sessionStorage.setItem('mr.filtre', JSON.stringify(etat));
     if (!store.estConfigure() && !toutes.length) { resultats.innerHTML = nonConfigure(); return; }
     const liste = toutes.filter(r => (etat.cat === 'Tout' || r.meta.categorie === etat.cat) && correspond(r, etat.q));
-    let html = '';
-    if (!etat.q && etat.cat === 'Tout') {
-      const recentes = store.historique().map(store.recette).filter(Boolean).slice(0, 4);
-      if (recentes.length) {
-        html += `<div class="section-tete"><h2>Cuisinées récemment</h2><a class="lien" href="#/recettes">Tout voir</a></div>
-          <div class="grille">${recentes.map(carteRecette).join('')}</div>`;
-      }
-      html += `<div class="section-tete"><h2>${recentes.length ? 'Toutes les recettes' : 'Mes recettes'}</h2>
-        <span class="aide">${liste.length}</span></div>`;
-    } else {
-      html += `<div class="section-tete"><h2>${liste.length} résultat${liste.length > 1 ? 's' : ''}</h2></div>`;
-    }
+    trier(liste, tri);
+    const titre = !etat.q && etat.cat === 'Tout' ? `Mes recettes <span class="aide">${liste.length}</span>`
+      : `${liste.length} résultat${liste.length > 1 ? 's' : ''}`;
+    let html = `<div class="section-tete"><h2>${titre}</h2>
+      <label class="tri">${icon('tri')}<span class="sr">Trier</span>
+        <select id="tri">${TRIS.map(([v, lib]) => `<option value="${v}" ${v === tri ? 'selected' : ''}>${lib}</option>`).join('')}</select></label></div>`;
     if (liste.length) html += `<div class="grille">${liste.map(carteRecette).join('')}</div>`;
     else if (!toutes.length) html += `<div class="vide"><div class="serif">Aucune recette pour l'instant</div><p>Synchronisation en cours, ou ajoutez votre première recette.</p></div>`;
     else html += `<div class="vide"><p>Rien ne correspond à « ${esc(etat.q)} ».</p></div>`;
@@ -98,6 +110,12 @@ export function accueil(root) {
   };
 
   root.querySelector('input').addEventListener('input', e => { etat.q = e.target.value; afficher(); });
+  resultats.addEventListener('change', e => {
+    if (e.target.id !== 'tri') return;
+    tri = e.target.value;
+    try { localStorage.setItem('mr.tri', tri); } catch { /* stockage indisponible */ }
+    afficher();
+  });
   root.querySelectorAll('.puce').forEach(b => b.addEventListener('click', () => {
     etat.cat = b.dataset.cat;
     root.querySelectorAll('.puce').forEach(x => x.setAttribute('aria-pressed', x === b));

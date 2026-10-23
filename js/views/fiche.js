@@ -99,6 +99,7 @@ export function fiche(root, { params }) {
   };
   root.querySelector('#aux-courses')?.addEventListener('click', () => ajouterAuxCourses(r, etat.portions));
   const btnCuisine = root.querySelector('#cuisiner');
+  btnCuisine?.addEventListener('click', () => sessionStorage.removeItem('mr.apresCuisine'));
   const majLien = () => { if (btnCuisine) btnCuisine.href = `#/cuisine/${encodeURIComponent(r.slug)}?p=${etat.portions}`; };
 
   // Les trois onglets sont côte à côte dans une piste qui défile horizontalement :

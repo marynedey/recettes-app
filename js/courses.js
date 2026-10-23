@@ -2,7 +2,7 @@
 // ingrédients additionnés et rangés par rayon, ce qu'on a déjà à la maison.
 // La partie calcul n'utilise pas le navigateur : testée avec `node --test`.
 
-import { sansAccents, formatNumber, formatQty } from './format.js';
+import { sansAccents, formatNumber, formatQty, parseIngredient } from './format.js';
 
 /* ---------- unités ---------- */
 
@@ -68,39 +68,45 @@ export function rayon(cle) {
 /* ---------- liste ---------- */
 
 /**
- * Additionne les ingrédients des recettes prévues.
- * prevues : [{ recette, portions }] ; renvoie [{ cle, nom, rayon, quantites: [{ n, unite }],
- * sansQuantite: bool, details: [{ titre, texte }] }].
+ * Additionne les ingrédients des recettes prévues et les articles ajoutés à la main.
+ * prevues : [{ recette, portions }] ; ajouts : [{ id, texte }] (« 2 citrons », « papier cuisson »).
+ * Renvoie [{ cle, nom, rayon, quantites: [{ n, unite }], sansQuantite, details: [{ titre, partie?, texte, ajout? }] }].
  */
-export function listeDeCourses(prevues) {
+export function listeDeCourses(prevues, ajouts = []) {
   const articles = new Map();
+  const compter = (ing, facteur, detail) => {
+    const nom = ing.qty == null ? ing.raw : ing.name;
+    const cle = cleIngredient(nom);
+    if (!cle) return;
+    let a = articles.get(cle);
+    if (!a) {
+      const affiche = nomCourses(nom) || nom;
+      a = { cle, nom: affiche[0].toUpperCase() + affiche.slice(1), rayon: rayon(cle), parUnite: new Map(), sansQuantite: false, details: [] };
+      articles.set(cle, a);
+    }
+    if (ing.qty == null) {
+      a.sansQuantite = true;
+      a.details.push({ ...detail, texte: ing.raw });
+      return;
+    }
+    // Une fourchette (« 600-800 g ») : on achète pour le haut de la fourchette.
+    const q = (ing.qtyMax ?? ing.qty) * facteur;
+    const [unite, k] = CONVERSIONS[ing.unit] || [ing.unit, 1];
+    a.parUnite.set(unite, (a.parUnite.get(unite) || 0) + q * k);
+    a.details.push({ ...detail, texte: `${formatQty(ing, facteur)} ${ing.name}`.trim() });
+  };
   for (const { recette: r, portions } of prevues) {
     const base = Number(r.meta.portions) || 0;
     const facteur = base ? portions / base : portions; // sans nombre de personnes : « × n »
     for (const g of r.ingredients) {
       for (const ing of g.items) {
-        const nom = ing.qty == null ? ing.raw : ing.name;
-        const cle = cleIngredient(nom);
-        if (!cle || /^eau\b/.test(cle)) continue; // l'eau du robinet ne s'achète pas
-        let a = articles.get(cle);
-        if (!a) {
-          const affiche = nomCourses(nom);
-          a = { cle, nom: affiche[0].toUpperCase() + affiche.slice(1), rayon: rayon(cle), parUnite: new Map(), sansQuantite: false, details: [] };
-          articles.set(cle, a);
-        }
-        if (ing.qty == null) {
-          a.sansQuantite = true;
-          a.details.push({ titre: r.meta.titre, partie: g.group, texte: ing.raw });
-          continue;
-        }
-        // Une fourchette (« 600-800 g ») : on achète pour le haut de la fourchette.
-        const q = (ing.qtyMax ?? ing.qty) * facteur;
-        const [unite, k] = CONVERSIONS[ing.unit] || [ing.unit, 1];
-        a.parUnite.set(unite, (a.parUnite.get(unite) || 0) + q * k);
-        a.details.push({ titre: r.meta.titre, partie: g.group, texte: `${formatQty(ing, facteur)} ${ing.name}`.trim() });
+        // L'eau du robinet d'une recette ne s'achète pas (une « eau gazeuse » ajoutée à la main, si).
+        if (/^eau\b/.test(cleIngredient(ing.qty == null ? ing.raw : ing.name))) continue;
+        compter(ing, facteur, { titre: r.meta.titre, partie: g.group });
       }
     }
   }
+  for (const { id, texte } of ajouts) compter(parseIngredient(texte), 1, { titre: 'Ajouté à la main', ajout: id });
   return [...articles.values()].map(a => ({
     cle: a.cle, nom: a.nom, rayon: a.rayon, details: a.details,
     // Poids et volumes d'abord : c'est la quantité principale (et celle de « j'en ai déjà »).
@@ -122,9 +128,9 @@ export const texteQuantites = a => a.quantites.map(q => formatQuantite(q.n, q.un
 /* ---------- enregistrement sur le téléphone ---------- */
 
 const CLE = 'mr.courses';
-const vide = () => ({ prevues: [], articles: {} });
+const vide = () => ({ prevues: [], ajouts: [], articles: {} });
 
-/** { prevues: [{ slug, portions }], articles: { [cle]: { coche, dispo } } } */
+/** { prevues: [{ slug, portions }], ajouts: [{ id, texte }], articles: { [cle]: { coche, dispo } } } */
 export function etat() {
   try { return { ...vide(), ...JSON.parse(localStorage.getItem(CLE)) }; } catch { return vide(); }
 }
@@ -144,3 +150,17 @@ export function retirer(slug) {
   enregistrer(e);
 }
 export const estPrevue = slug => etat().prevues.some(x => x.slug === slug);
+
+/** Ajoute un article à la main (« 2 citrons », « papier cuisson »). */
+export function ajouterArticle(texte) {
+  texte = texte.trim();
+  if (!texte) return;
+  const e = etat();
+  e.ajouts.push({ id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, texte });
+  enregistrer(e);
+}
+export function retirerArticle(id) {
+  const e = etat();
+  e.ajouts = e.ajouts.filter(a => a.id !== id);
+  enregistrer(e);
+}

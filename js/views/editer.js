@@ -187,59 +187,75 @@ export function editer(root, { params }) {
 export function ajouter(root, { query }) {
   if (exigeConfig(root)) return;
   const url = query.get('url') || '';
-  const manuel = query.get('manuel') === '1';
+  const ordre = ['lien', 'manuel'];
+  let onglet = query.get('manuel') === '1' ? 'manuel' : 'lien';
   root.className = 'page sans-tabbar';
   root.innerHTML = `<div class="retour-tete"><button class="btn-rond" id="retour" aria-label="Retour">${icon('back')}</button>
       <h1 class="titre-page">Nouvelle recette</h1></div>
     <div class="segments" role="tablist" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0">
-      <button role="tab" data-o="lien" aria-selected="${!manuel}">Par lien</button>
-      <button role="tab" data-o="manuel" aria-selected="${manuel}">Saisie manuelle</button>
+      <button role="tab" data-o="lien">Par lien</button>
+      <button role="tab" data-o="manuel">Saisie manuelle</button>
     </div>
-    <div id="zone"></div>`;
-  root.querySelector('#retour').onclick = () => retour();
-  const zone = root.querySelector('#zone');
-
-  const vueLien = () => {
-    zone.innerHTML = `<div class="carte-bloc">
-        <h2>Importer depuis un site</h2>
-        <p>Marmiton, 750g, Cuisine AZ, Journal des Femmes, blogs… L'import prend environ une minute et se fait en arrière-plan.</p>
-        <form id="f-lien">
-          <label class="champ"><span class="sr">Adresse de la recette</span>
-            <input name="url" type="url" inputmode="url" placeholder="https://www.marmiton.org/recettes/…" value="${esc(url)}" required autocomplete="off"></label>
-          <button class="bouton large" id="go">${icon('link')}Importer la recette</button>
-        </form>
+    <div class="onglets-piste" id="piste">
+      <div class="panneau" role="tabpanel" data-o="lien">
+        <div class="carte-bloc">
+          <h2>Importer depuis un site</h2>
+          <p>Marmiton, 750g, Cuisine AZ, Journal des Femmes, blogs… L'import prend environ une minute et se fait en arrière-plan.</p>
+          <form id="f-lien">
+            <label class="champ"><span class="sr">Adresse de la recette</span>
+              <input name="url" type="url" inputmode="url" placeholder="https://www.marmiton.org/recettes/…" value="${esc(url)}" required autocomplete="off"></label>
+            <button class="bouton large" id="go">${icon('link')}Importer la recette</button>
+          </form>
+        </div>
+        <p class="aide" style="margin-top:16px">Astuce : depuis Chrome ou l'app Marmiton, utilisez <b>Partager → Mes Recettes</b>.</p>
       </div>
-      <p class="aide" style="margin-top:16px">Astuce : depuis Chrome ou l'app Marmiton, utilisez <b>Partager → Mes Recettes</b>.</p>`;
-    zone.querySelector('#f-lien').addEventListener('submit', async e => {
-      e.preventDefault();
-      const v = e.target.url.value.trim();
-      let u;
-      try { u = new URL(v); if (!/^https?:$/.test(u.protocol)) throw 0; } catch { toast('Adresse invalide.'); return; }
-      const b = zone.querySelector('#go');
-      b.disabled = true; b.innerHTML = '<span class="spinner"></span>Envoi…';
-      try {
-        await store.demanderImport(u.href);
-        window.dispatchEvent(new Event('mr:imports'));
-        toast('Import lancé, la recette arrive dans une minute.', 4000);
-        location.replace('#/');
-      } catch (err) {
-        b.disabled = false; b.innerHTML = `${icon('link')}Importer la recette`;
-        alert(err.message);
-      }
-    });
-  };
+      <div class="panneau" role="tabpanel" data-o="manuel"></div>
+    </div>`;
+  root.querySelector('#retour').onclick = () => retour();
+  const piste = root.querySelector('#piste');
+  const panneaux = Object.fromEntries([...piste.children].map(p => [p.dataset.o, p]));
 
-  const vueManuel = () => {
-    zone.innerHTML = '';
-    const r = emptyRecipe();
-    if (url) r.meta.source = url;
-    formulaire(zone, r, { onAnnuler: () => retour() });
-  };
+  panneaux.lien.querySelector('#f-lien').addEventListener('submit', async e => {
+    e.preventDefault();
+    const v = e.target.url.value.trim();
+    let u;
+    try { u = new URL(v); if (!/^https?:$/.test(u.protocol)) throw 0; } catch { toast('Adresse invalide.'); return; }
+    const b = panneaux.lien.querySelector('#go');
+    b.disabled = true; b.innerHTML = '<span class="spinner"></span>Envoi…';
+    try {
+      await store.demanderImport(u.href);
+      window.dispatchEvent(new Event('mr:imports'));
+      toast('Import lancé, la recette arrive dans une minute.', 4000);
+      location.replace('#/');
+    } catch (err) {
+      b.disabled = false; b.innerHTML = `${icon('link')}Importer la recette`;
+      alert(err.message);
+    }
+  });
 
-  const tabs = root.querySelectorAll('[role=tab]');
-  tabs.forEach(t => t.addEventListener('click', () => {
-    tabs.forEach(x => x.setAttribute('aria-selected', x === t));
-    (t.dataset.o === 'lien' ? vueLien : vueManuel)();
-  }));
-  (manuel ? vueManuel : vueLien)();
+  const r = emptyRecipe();
+  if (url) r.meta.source = url;
+  formulaire(panneaux.manuel, r, { onAnnuler: () => retour() });
+
+  // Même glissement que les onglets d'une fiche (piste native, la hauteur suit l'onglet affiché).
+  const onglets = root.querySelectorAll('[role=tab]');
+  const ajusterHauteur = () => { piste.style.height = `${panneaux[onglet].offsetHeight}px`; };
+  const marquer = o => {
+    onglet = o;
+    onglets.forEach(b => b.setAttribute('aria-selected', b.dataset.o === o));
+    // La barre Annuler / Enregistrer ne concerne que la saisie manuelle.
+    root.classList.toggle('sur-lien', o === 'lien');
+    ajusterHauteur();
+  };
+  const ouvrir = (o, doux = true) => {
+    marquer(o);
+    piste.scrollTo({ left: ordre.indexOf(o) * piste.clientWidth, behavior: doux ? 'smooth' : 'instant' });
+  };
+  onglets.forEach(b => b.addEventListener('click', () => ouvrir(b.dataset.o)));
+  piste.addEventListener('scroll', () => {
+    const o = ordre[Math.round(piste.scrollLeft / piste.clientWidth)];
+    if (o && o !== onglet) marquer(o);
+  }, { passive: true });
+  Object.values(panneaux).forEach(p => new ResizeObserver(ajusterHauteur).observe(p));
+  ouvrir(onglet, false);
 }

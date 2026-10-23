@@ -29,6 +29,7 @@ const IMAGE = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQ
 let fichiers;   // chemin → Buffer
 let ecritures;  // [{ methode, chemin, message, contenu }]
 let requetesSansJeton;
+let droitEcriture;  // false : jeton en lecture seule
 
 function depotInitial() {
   fichiers = new Map();
@@ -36,6 +37,7 @@ function depotInitial() {
   for (const f of readdirSync(dir)) fichiers.set(`recettes/${f}`, readFileSync(join(dir, f)));
   ecritures = [];
   requetesSansJeton = 0;
+  droitEcriture = true;
 }
 
 async function fauxGitHub(route) {
@@ -44,7 +46,7 @@ async function fauxGitHub(route) {
   if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
   if (req.headers().authorization !== `Bearer ${JETON}`) { requetesSansJeton++; return json({ message: 'Bad credentials' }, 401); }
   const p = new URL(req.url()).pathname.replace(`/repos/${DEPOT}`, '');
-  if (p === '') return json({ default_branch: 'main', full_name: DEPOT, private: true, permissions: { push: true } });
+  if (p === '') return json({ default_branch: 'main', full_name: DEPOT, private: true, permissions: { push: droitEcriture } });
   if (p.startsWith('/git/trees/')) return json({ tree: [...fichiers].map(([path, b]) => ({ path, type: 'blob', sha: sha(b) })) });
   if (p.startsWith('/git/blobs/')) {
     const b = [...fichiers.values()].find(v => sha(v) === p.split('/').pop());
@@ -309,12 +311,11 @@ test('photos : plusieurs photos, carrousel, photo principale et retrait', async 
   fichiers.set('recettes/gateau.md', Buffer.from('---\ntitre: Gâteau\ncategorie: Desserts\nportions: 4\nphotos: [photos/gateau.jpg, photos/gateau-2.jpg]\n---\n## Ingrédients\n- 200 g farine\n\n## Étapes\n1. Cuire.\n'));
   fichiers.set('photos/gateau.jpg', IMAGE);
   fichiers.set('photos/gateau-2.jpg', Buffer.concat([IMAGE, Buffer.from([0])]));
+  // Au démarrage, plusieurs photos se chargent en même temps (ici deux recettes
+  // qui partagent la même photo) avant la fin de la synchronisation.
+  fichiers.set('recettes/cake.md', Buffer.from('---\ntitre: Cake\ncategorie: Desserts\nphotos: [photos/gateau.jpg]\n---\n## Ingrédients\n- 1 œuf\n\n## Étapes\n1. Cuire.\n'));
   await nouvellePage();
 
-  // Au démarrage, plusieurs photos se chargent en même temps (ici la même recette
-  // dans « Cuisinées récemment » et dans la liste) avant la fin de la synchronisation.
-  await page.evaluate(() => localStorage.setItem('mr.historique', JSON.stringify(['gateau'])));
-  await page.reload();
   await page.locator('.visuel.a-photo').nth(1).waitFor();
   assert.deepEqual(erreurs, [], 'chargement simultané de plusieurs photos');
 
@@ -488,6 +489,365 @@ test('courses : recettes prévues, liste additionnée par rayon, cases et « j\'
   await page.locator('.prevue', { hasText: 'Cinnamon rolls' }).locator('.pv-retirer').click();
   assert.equal(await article('Lait').count(), 0);
   assert.match(await article('Farine').locator('.art-qte').textContent(), /^233,4 g$|^233,4 g/);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+/* ---------- autres écrans et cas particuliers ---------- */
+
+const titresAccueil = () => page.locator('#resultats .carte h3').allTextContents();
+
+test('accueil : tri (A → Z, plus rapides, plus récentes, plus anciennes) retenu, sans « Cuisinées récemment »', async () => {
+  depotInitial();
+  fichiers.set('recettes/crepes.md', Buffer.from('---\ntitre: Crêpes\ncategorie: Desserts\najoutee: 2026-10-23\n---\n## Ingrédients\n- 250 g farine\n\n## Étapes\n1. Mélanger.\n'));
+  fichiers.set('recettes/salade.md', Buffer.from('---\ntitre: Salade\ncategorie: Entrées\npreparation: 10\najoutee: 2025-01-05\n---\n## Ingrédients\n- 1 salade\n\n## Étapes\n1. Laver.\n'));
+  await nouvellePage();
+  await page.evaluate(() => localStorage.setItem('mr.historique', JSON.stringify(['tarte-tatin'])));
+  await page.reload();
+  await page.locator('#resultats .carte').nth(4).waitFor();
+  assert.equal(await page.locator('text=Cuisinées récemment').count(), 0);
+
+  assert.deepEqual(await titresAccueil(), ['Cinnamon rolls', 'Crêpes', 'Risotto aux champignons', 'Salade', 'Tarte tatin'], 'A → Z par défaut');
+  await page.selectOption('#tri', 'rapide');
+  assert.deepEqual(await titresAccueil(), ['Salade', 'Risotto aux champignons', 'Tarte tatin', 'Cinnamon rolls', 'Crêpes'], 'durée inconnue en dernier');
+  await page.selectOption('#tri', 'recente');
+  assert.deepEqual(await titresAccueil(), ['Crêpes', 'Cinnamon rolls', 'Risotto aux champignons', 'Tarte tatin', 'Salade']);
+  await page.selectOption('#tri', 'ancienne');
+  assert.deepEqual(await titresAccueil(), ['Salade', 'Cinnamon rolls', 'Risotto aux champignons', 'Tarte tatin', 'Crêpes']);
+
+  // Le choix est retenu, et se combine avec les filtres.
+  await page.reload();
+  await page.locator('#resultats .carte').nth(4).waitFor();
+  assert.equal(await page.inputValue('#tri'), 'ancienne');
+  await page.click('.puce[data-cat=Desserts]');
+  assert.deepEqual(await titresAccueil(), ['Cinnamon rolls', 'Tarte tatin', 'Crêpes']);
+  await page.fill('input[type=search]', 'zzz');
+  assert.match(await page.textContent('#resultats'), /Rien ne correspond à « zzz »/);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('onglets Recettes et Favoris', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.click('.tabbar a[href="#/recettes"]');
+  assert.deepEqual(await page.locator('.lettre').allTextContents(), ['C', 'R', 'T']);
+  await page.fill('input[type=search]', 'pommes');
+  assert.deepEqual(await page.locator('.ligne-recette h3').allTextContents(), ['Tarte tatin']);
+
+  await page.click('.tabbar a[href="#/favoris"]');
+  assert.match(await page.textContent('.vide'), /Pas encore de favoris/);
+  await page.goto(BASE + '#/recette/risotto-aux-champignons');
+  await page.click('#fav');
+  assert.equal(await page.getAttribute('#fav', 'aria-pressed'), 'true');
+  await page.goto(BASE + '#/favoris');
+  assert.deepEqual(await page.locator('.carte h3').allTextContents(), ['Risotto aux champignons']);
+  await page.click('.carte');
+  await page.click('#fav');
+  await page.goto(BASE + '#/favoris');
+  assert.equal(await page.locator('.carte').count(), 0, 'retirée des favoris');
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('courses : « Voir la liste » après l\'ajout, articles ajoutés à la main', async () => {
+  depotInitial();
+  await nouvellePage();
+  const article = nom => page.locator('.article', { has: page.locator('.art-nom', { hasText: new RegExp(`^${nom}$`) }) });
+
+  // Liste vide : on peut quand même ajouter des articles, sans aucune recette.
+  await page.goto(BASE + '#/courses');
+  await page.fill('#ajout-article input', '2 citrons');
+  await page.press('#ajout-article input', 'Enter');
+  await page.fill('#ajout-article input', 'papier cuisson');
+  await page.click('#ajout-article button');
+  await page.fill('#ajout-article input', '   ');
+  await page.press('#ajout-article input', 'Enter');
+  assert.equal(await page.locator('.article').count(), 2, 'une ligne vide n\'ajoute rien');
+  assert.equal(await page.evaluate(() => document.activeElement.name), 'texte', 'le champ reste prêt pour l\'article suivant');
+  assert.equal(await article('Citrons').locator('.art-qte').textContent(), '2');
+  assert.equal(await article('Papier cuisson').locator('.art-qte').textContent(), 'à vérifier');
+
+  // Depuis une fiche : le message propose d'ouvrir la liste.
+  await page.goto(BASE + '#/recette/tarte-tatin');
+  await page.click('#aux-courses');
+  await page.locator('.toast.visible .toast-action').waitFor();
+  assert.match(await page.textContent('.toast'), /Ajoutée aux courses \(6 pers\.\)/);
+  await page.click('.toast-action');
+  await page.waitForURL(/#\/courses$/);
+  assert.match(await page.locator('.prevue').textContent(), /Tarte tatin/);
+
+  // Les articles à la main restent, à côté de ceux des recettes ; on peut les retirer un par un.
+  assert.equal(await article('Citrons').count(), 1);
+  await article('Papier cuisson').locator('.art-corps').click();
+  assert.match(await article('Papier cuisson').locator('.art-detail').textContent(), /Ajouté à la main/);
+  await article('Papier cuisson').locator('[data-ajout]').click();
+  assert.equal(await article('Papier cuisson').count(), 0);
+  await page.reload();
+  await page.locator('.article').first().waitFor();
+  assert.equal(await article('Citrons').count(), 1, 'gardé après rechargement');
+
+  // Partage : uniquement ce qu'il reste à acheter.
+  await article('Citrons').locator('.art-case').click();
+  await page.evaluate(() => { delete Navigator.prototype.share; navigator.clipboard.writeText = t => { window.copie = t; return Promise.resolve(); }; });
+  await page.click('#partager');
+  await page.waitForFunction(() => window.copie);
+  const copie = await page.evaluate(() => window.copie);
+  assert.match(copie, /^Liste de courses\n/);
+  assert.match(copie, /- Farine : 200 g/);
+  assert.ok(!/Citrons/.test(copie), 'les articles cochés ne sont pas partagés');
+
+  // Vider : on confirme, tout part (recettes et articles à la main).
+  page.once('dialog', d => d.accept());
+  await page.click('#vider');
+  assert.equal(await page.locator('.article').count(), 0);
+  assert.equal(await page.locator('.prevue').count(), 0);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('mode cuisine : recommencer, messages au pluriel, retour après « Terminé »', async () => {
+  depotInitial();
+  await nouvellePage({ horloge: true });
+  await page.click('text=Tarte tatin');
+  await page.click('#cuisiner');
+  await page.click('#m-lecture'); // étape 1 : 30 min
+  for (let k = 0; k < 5; k++) await page.click('#suiv');
+  await page.click('#m-lecture'); // étape 6 : 12 min
+  await page.click('#suiv');
+  assert.match(await etape(), /Étape 7/);
+
+  // En revenant plus tard, on retrouve l'étape et les minuteurs…
+  await page.click('#fermer');
+  await page.locator('.fiche-feuille').waitFor();
+  await page.click('#cuisiner');
+  assert.match(await etape(), /Étape 7/);
+  assert.equal(await page.locator('.minuteur-mini').count(), 2);
+
+  // … sauf si on recommence (après confirmation).
+  page.once('dialog', d => d.dismiss());
+  await page.click('#recommencer');
+  assert.match(await etape(), /Étape 7/, 'annuler ne change rien');
+  page.once('dialog', d => d.accept());
+  await page.click('#recommencer');
+  await page.waitForTimeout(300);
+  assert.match(await etape(), /Étape 1/);
+  assert.equal(await page.locator('.minuteur-mini').count(), 0);
+  assert.equal(await page.textContent('#t-bloc'), '30:00', 'minuteur remis à zéro');
+  assert.match(await page.textContent('.toast'), /Recette recommencée/);
+  await page.goBack();
+  await page.locator('.fiche-feuille').waitFor();
+  assert.match(page.url(), /#\/recette\/tarte-tatin$/, 'l\'étape 1 est bien la première de l\'historique');
+
+  // Deux minuteurs en cours à la fin : « les arrêter », avec un espace.
+  await page.click('#cuisiner');
+  await page.click('#m-lecture');
+  for (let k = 0; k < 5; k++) await page.click('#suiv');
+  await page.click('#m-lecture');
+  let question = '';
+  page.once('dialog', d => { question = d.message(); d.accept(); });
+  for (let k = 0; k < 4; k++) await page.click('#suiv');
+  assert.equal(question, '2 minuteurs sont encore en cours. Terminer la recette et les arrêter ?');
+
+  // Après « Terminé » on est sur la fiche ; « retour » mène à l'accueil, pas au mode cuisine.
+  await page.waitForURL(/#\/recette\/tarte-tatin$/);
+  await page.locator('.fiche-feuille').waitFor();
+  await page.goBack();
+  await page.waitForTimeout(300);
+  assert.match(page.url(), /\/(#\/)?$/);
+  assert.equal(await page.locator('.cuisine-corps').count(), 0);
+  assert.ok(await page.locator('.grand-titre').isVisible());
+
+  // Mode cuisine ouvert directement (notification, app fermée) : « Terminé » mène à la fiche,
+  // et « retour » depuis la fiche à l'accueil, jamais de nouveau au mode cuisine.
+  const autre = await ctx.newPage();
+  autre.on('pageerror', e => erreurs.push(e.message));
+  await autre.goto(BASE + '#/cuisine/tarte-tatin');
+  await autre.locator('.etape-label').waitFor();
+  // Dans l'app ouverte par une notification, le mode cuisine est la toute première page ;
+  // ici un onglet neuf commence par about:blank, qu'on rend inaccessible.
+  await autre.evaluate(() => { const go = history.go.bind(history); history.go = n => { if (-n < history.length - 1) go(n); }; });
+  for (let k = 0; k < 9; k++) await autre.click('#suiv');
+  await autre.waitForURL(/#\/recette\/tarte-tatin$/);
+  await autre.locator('.fiche-feuille').waitFor();
+  await autre.click('.fiche-hero #retour, .retour-tete #retour');
+  await autre.waitForTimeout(400);
+  assert.equal(await autre.locator('.cuisine-corps').count(), 0, 'pas de retour au mode cuisine');
+  assert.ok(await autre.locator('.grand-titre').isVisible());
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('mode cuisine : notification touchée alors que le mode cuisine est déjà ouvert', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.click('text=Tarte tatin');
+  await page.click('#cuisiner');
+  for (let k = 0; k < 5; k++) await page.click('#suiv');
+  assert.match(await etape(), /Étape 6/);
+  const longueur = await page.evaluate(() => history.length);
+  // Ce que fait le service worker quand on touche la notification du minuteur de l'étape 1.
+  await page.evaluate(() => navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { aller: '#/cuisine/tarte-tatin?e=0' } })));
+  await page.waitForTimeout(300);
+  assert.match(await etape(), /Étape 1/);
+  assert.match(page.url(), /#\/cuisine\/tarte-tatin(\?p=6)?$/);
+  assert.ok(await page.evaluate(() => history.length) <= longueur, 'pas de second historique empilé');
+  await page.click('#suiv');
+  assert.match(await etape(), /Étape 2/);
+  await page.goBack(); await page.goBack();
+  await page.locator('.fiche-feuille').waitFor();
+  assert.match(page.url(), /#\/recette\/tarte-tatin$/);
+
+  // Depuis un autre écran, la notification ouvre le mode cuisine à la bonne étape.
+  await page.goto(BASE + '#/');
+  await page.evaluate(() => navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { aller: '#/cuisine/tarte-tatin?e=5' } })));
+  await page.locator('.etape-label').waitFor();
+  assert.match(await etape(), /Étape 6/);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('nouvelle recette : glisser entre « Par lien » et « Saisie manuelle »', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/ajouter');
+  await page.locator('#f-lien').waitFor();
+  assert.equal(await ongletActif(), 'Par lien');
+  assert.ok(await page.locator('.barre-bas').isHidden(), 'pas de barre Enregistrer sur l\'import par lien');
+
+  await glisser('#piste', 'gauche');
+  assert.equal(await ongletActif(), 'Saisie manuelle');
+  assert.ok(await page.locator('.barre-bas').isVisible());
+  await page.fill('[name=titre]', 'Brouillon');
+  await glisser('#piste', 'droite');
+  assert.equal(await ongletActif(), 'Par lien');
+  assert.ok(await page.locator('.barre-bas').isHidden());
+
+  // Les onglets se touchent aussi ; la saisie n'est pas perdue en passant de l'un à l'autre.
+  await page.click('[role=tab][data-o=manuel]');
+  await page.waitForTimeout(600);
+  assert.equal(await ongletActif(), 'Saisie manuelle');
+  assert.equal(await page.inputValue('[name=titre]'), 'Brouillon');
+
+  // Le titre est obligatoire.
+  await page.fill('[name=titre]', '');
+  await page.click('#enreg');
+  assert.match(await page.textContent('.toast'), /titre est obligatoire/);
+  assert.equal(ecritures.length, 0);
+
+  // Adresse invalide refusée sans rien écrire.
+  await page.click('[role=tab][data-o=lien]');
+  await page.waitForTimeout(600);
+  await page.fill('[name=url]', 'pas une adresse');
+  await page.click('#go');
+  assert.equal(ecritures.length, 0);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('modifier puis supprimer une recette', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/recette/risotto-aux-champignons');
+  await page.click('.actions a[aria-label=Modifier]');
+  await page.locator('#form').waitFor();
+  assert.equal(await page.inputValue('[name=titre]'), 'Risotto aux champignons');
+  await page.fill('[name=portions]', '2');
+  await page.click('#enreg');
+  await page.waitForURL(/#\/recette\/risotto-aux-champignons$/);
+  const md = ecritures.find(w => w.chemin === 'recettes/risotto-aux-champignons.md');
+  assert.match(md.contenu, /\nportions: 2\n/);
+  await page.locator('.fiche-feuille h1').waitFor();
+  await page.click('[role=tab][data-o=notes]');
+  page.once('dialog', d => d.accept());
+  await page.click('#suppr');
+  await page.waitForURL(/#\/$/);
+  assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === 'recettes/risotto-aux-champignons.md'));
+  await page.locator('#resultats .carte').first().waitFor();
+  assert.ok(!(await titresAccueil()).includes('Risotto aux champignons'));
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('import par lien : résultat réussi, puis échec avec formulaire pré-rempli', async () => {
+  depotInitial();
+  await nouvellePage({ horloge: true });
+  const attendre = async (id, resultat) => {
+    fichiers.set(`import/resultats/${id}.json`, Buffer.from(JSON.stringify(resultat)));
+    await page.evaluate(id => {
+      localStorage.setItem('mr.imports', JSON.stringify([{ id, url: 'https://exemple.fr/r', depuis: Date.now() }]));
+      window.dispatchEvent(new Event('mr:imports'));
+    }, id);
+  };
+
+  fichiers.set('recettes/gaufres.md', Buffer.from('---\ntitre: Gaufres\ncategorie: Desserts\n---\n## Ingrédients\n- 250 g farine\n\n## Étapes\n1. Cuire.\n'));
+  await attendre('a1', { statut: 'ok', slug: 'gaufres', titre: 'Gaufres' });
+  await page.clock.fastForward(9000);
+  await page.locator('.toast.visible').waitFor();
+  assert.match(await page.textContent('.toast'), /« Gaufres » importée/);
+  await page.locator('.carte h3', { hasText: 'Gaufres' }).waitFor();
+  assert.ok(!fichiers.has('import/resultats/a1.json'), 'résultat nettoyé');
+
+  await attendre('a2', { statut: 'erreur', message: 'Pas de recette trouvée sur cette page.' });
+  await page.reload();
+  assert.match(await page.textContent('.banniere'), /Import en cours/);
+  await page.clock.fastForward(9000);
+  await page.locator('.banniere.erreur').waitFor();
+  assert.match(await page.textContent('.banniere.erreur'), /Pas de recette trouvée/);
+  await page.click('.banniere.erreur a');
+  await page.waitForURL(/#\/ajouter\?manuel=1/);
+  assert.equal(await ongletActif(), 'Saisie manuelle');
+  assert.equal(await page.inputValue('[name=source]'), 'https://exemple.fr/r');
+  await page.goto(BASE + '#/');
+  assert.equal(await page.locator('.banniere.erreur').count(), 0, 'bannière oubliée une fois traitée');
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('« Partager → Mes Recettes » ouvre l\'import avec le lien', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '?text=' + encodeURIComponent('Regarde https://www.marmiton.org/recettes/x.aspx trop bon'));
+  await page.locator('#f-lien').waitFor();
+  assert.match(page.url(), /#\/ajouter\?url=/);
+  assert.equal(await page.inputValue('[name=url]'), 'https://www.marmiton.org/recettes/x.aspx');
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('réglages : erreurs claires, version affichée, app non configurée', async () => {
+  depotInitial();
+  await nouvellePage({ configure: false });
+  assert.match(await page.textContent('#resultats'), /Bienvenue/);
+  await page.goto(BASE + '#/ajouter');
+  assert.match(await page.textContent('.vide'), /Réglages nécessaires/);
+  await page.goto(BASE + '#/nimporte-quoi');
+  await page.waitForURL(/#\/$/);
+
+  await page.goto(BASE + '#/reglages');
+  const version = readFileSync(join(RACINE, 'js/views/reglages.js'), 'utf8').match(/VERSION = '([\d.]+)'/)[1];
+  assert.match(await page.textContent('.page'), new RegExp(`version ${version.replace(/\./g, '\\.')}`));
+
+  await page.fill('[name=jeton]', JETON);
+  await page.fill('[name=depot]', 'mes-recettes');
+  await page.click('#tester');
+  assert.match(await page.textContent('#etat'), /utilisateur\/nom-du-depot/);
+
+  droitEcriture = false;
+  await page.fill('[name=depot]', `https://github.com/${DEPOT}/`);
+  await page.click('#tester');
+  await page.locator('#etat.ko').waitFor();
+  assert.match(await page.textContent('#etat'), /lecture seule/);
+
+  droitEcriture = true;
+  await page.click('#tester');
+  await page.locator('#etat.ok').waitFor();
+  assert.match(await page.textContent('#etat'), /3 recette\(s\)/);
+
+  await page.fill('[name=jeton]', 'github_pat_MAUVAIS_0123456789abcdef');
+  await page.click('#tester');
+  await page.locator('#etat.ko').waitFor();
+  assert.match(await page.textContent('#etat'), /jeton|Bad credentials|refus/i);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

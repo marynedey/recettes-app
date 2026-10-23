@@ -29,6 +29,7 @@ const P = {
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
   refresh: '<path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"/><path d="M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5L20 16"/><path d="M20 20v-4h-4"/>',
   share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.4M8.2 13.2l7.6 4.4"/>',
+  tri: '<path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M14 6h7M14 12h5M14 18h3"/>',
   plate: '<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="3"/><path d="M3 4v5a1.5 1.5 0 0 0 3 0V4M4.5 4v16M21 4c-1.5 0-2.5 2-2.5 5s1 4 2.5 4v7"/>',
   reset: '<path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5"/><path d="M4 4v4.5h4.5"/>',
 };
@@ -109,10 +110,20 @@ export function texteNotes(t) {
 }
 
 let toastTimer;
-export function toast(msg, ms = 2800) {
+/** Message temporaire en bas d'écran, avec un bouton facultatif ({ texte, href }). */
+export function toast(msg, ms = 2800, action = null) {
   let el = document.querySelector('.toast');
   if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
   el.textContent = msg;
+  el.classList.toggle('avec-action', !!action);
+  if (action) {
+    const a = document.createElement('a');
+    a.className = 'toast-action';
+    a.href = action.href;
+    a.textContent = action.texte;
+    a.addEventListener('click', () => el.classList.remove('visible'));
+    el.append(' ', a);
+  }
   requestAnimationFrame(() => el.classList.add('visible'));
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('visible'), ms);
