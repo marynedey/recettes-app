@@ -125,47 +125,81 @@ export function manque(article, dispo) {
 
 export const texteQuantites = a => a.quantites.map(q => formatQuantite(q.n, q.unite)).join(' + ');
 
-/* ---------- enregistrement sur le téléphone ---------- */
+/* ---------- liste partagée : opérations ---------- */
+
+// La liste est gardée sur le téléphone et, si l'app est connectée au dépôt, dans `courses.json`
+// (partagée par toute la famille). Chaque modification est une opération : appliquée tout de
+// suite ici, puis envoyée ; si quelqu'un d'autre a modifié la liste entre-temps, on rejoue nos
+// opérations sur sa version au lieu de l'écraser.
 
 const CLE = 'mr.courses';
+const ATTENTE = 'mr.courses.attente'; // opérations pas encore envoyées
+const SHA = 'mr.courses.sha';         // version du dépôt sur laquelle la copie locale est basée
 const vide = () => ({ prevues: [], ajouts: [], articles: {}, masques: {} });
+const normaliser = e => ({ ...vide(), ...(e || {}) });
+
+const lire = (k, defaut) => { try { return JSON.parse(localStorage.getItem(k)) ?? defaut; } catch { return defaut; } };
+const ecrire = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* stockage plein */ } };
 
 /** { prevues: [{ slug, portions }], ajouts: [{ id, texte }], articles: { [cle]: { coche, dispo } }, masques: { [cle]: signature } } */
-export function etat() {
-  try { return { ...vide(), ...JSON.parse(localStorage.getItem(CLE)) }; } catch { return vide(); }
-}
-export function enregistrer(e) {
-  try { localStorage.setItem(CLE, JSON.stringify(e)); } catch { /* stockage plein */ }
+export const etat = () => normaliser(lire(CLE, null));
+
+const OPS = {
+  prevoir(e, { slug, portions }) {
+    const p = e.prevues.find(x => x.slug === slug);
+    if (p) p.portions = portions; else e.prevues.push({ slug, portions });
+  },
+  retirer(e, { slug }) { e.prevues = e.prevues.filter(x => x.slug !== slug); },
+  ajouter(e, { id, texte }) { if (!e.ajouts.some(a => a.id === id)) e.ajouts.push({ id, texte }); },
+  retirerAjout(e, { id }) { e.ajouts = e.ajouts.filter(a => a.id !== id); },
+  article(e, { cle, champs }) { e.articles[cle] = { ...e.articles[cle], ...champs }; },
+  // Retrait (glissement, « Retirer les articles cochés ») et son annulation.
+  retirerArticles(e, { liste }) {
+    for (const { cle, signature: sig, ajouts } of liste) {
+      e.ajouts = e.ajouts.filter(a => !ajouts.includes(a.id));
+      if (sig) e.masques[cle] = sig;
+      delete e.articles[cle];
+    }
+  },
+  remettreArticles(e, { liste }) {
+    for (const { cle, ajouts, articles } of liste) {
+      for (const a of ajouts) OPS.ajouter(e, a);
+      delete e.masques[cle];
+      if (articles) e.articles[cle] = articles;
+    }
+  },
+  decocher(e) { e.articles = {}; },
+  vider(e) { Object.assign(e, vide()); },
+  remplacer(e, { etat: nouveau }) { Object.assign(e, vide(), nouveau); },
+};
+
+const ecouteurs = new Set();
+/** Prévient quand la liste change (ici ou par quelqu'un d'autre). */
+export const surChangement = fn => { ecouteurs.add(fn); return () => ecouteurs.delete(fn); };
+
+function faire(type, args = {}) {
+  const e = etat();
+  OPS[type](e, args);
+  ecrire(CLE, e);
+  if (depot) { ecrire(ATTENTE, [...lire(ATTENTE, []), { type, args }]); planifierEnvoi(); }
 }
 
-export function prevoir(slug, portions) {
-  const e = etat();
-  const p = e.prevues.find(x => x.slug === slug);
-  if (p) p.portions = portions; else e.prevues.push({ slug, portions });
-  enregistrer(e);
-}
-export function retirer(slug) {
-  const e = etat();
-  e.prevues = e.prevues.filter(x => x.slug !== slug);
-  enregistrer(e);
-}
+export const prevoir = (slug, portions) => faire('prevoir', { slug, portions });
+export const retirer = slug => faire('retirer', { slug });
 export const estPrevue = slug => etat().prevues.some(x => x.slug === slug);
+export const majArticle = (cle, champs) => faire('article', { cle, champs });
+export const toutDecocher = () => faire('decocher');
+export const vider = () => faire('vider');
 
 /** Ajoute un article à la main (« 2 citrons », « papier cuisson »). */
 export function ajouterArticle(texte) {
   texte = texte.trim();
   if (!texte) return;
-  const e = etat();
-  e.ajouts.push({ id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, texte });
-  enregistrer(e);
+  faire('ajouter', { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, texte });
 }
-export function retirerArticle(id) {
-  const e = etat();
-  e.ajouts = e.ajouts.filter(a => a.id !== id);
-  enregistrer(e);
-}
+export const retirerArticle = id => faire('retirerAjout', { id });
 
-/* ---------- articles retirés d'un glissement ---------- */
+/* ---------- articles retirés (glissement, « Retirer les articles cochés ») ---------- */
 
 // Ce dont l'article est fait : s'il change (recette ajoutée, personnes en plus), il revient sur la liste.
 const signature = a => `${texteQuantites(a)}|${a.details.map(d => d.texte).join('|')}`;
@@ -173,16 +207,90 @@ const signature = a => `${texteQuantites(a)}|${a.details.map(d => d.texte).join(
 export const estMasque = (a, masques = {}) => masques[a.cle] === signature(a);
 
 /**
- * Retire un article de la liste. Ajouté à la main : supprimé ; venant d'une recette : masqué
+ * Retire des articles de la liste. Ajouté à la main : supprimé ; venant d'une recette : masqué
  * (tant que les quantités ne changent pas). Renvoie de quoi annuler.
  */
-export function supprimerArticle(a) {
-  const avant = etat();
-  const e = structuredClone(avant);
-  const ajouts = new Set(a.details.map(d => d.ajout).filter(Boolean));
-  if (ajouts.size === a.details.length) e.ajouts = e.ajouts.filter(x => !ajouts.has(x.id));
-  else e.masques[a.cle] = signature(a);
-  delete e.articles[a.cle];
-  enregistrer(e);
-  return () => enregistrer(avant);
+export function supprimerArticles(liste) {
+  const e = etat();
+  const retraits = liste.map(a => {
+    const ids = new Set(a.details.map(d => d.ajout).filter(Boolean));
+    const seulementAMain = ids.size === a.details.length;
+    return {
+      cle: a.cle, signature: seulementAMain ? null : signature(a), ajouts: [...ids],
+      remise: { cle: a.cle, ajouts: e.ajouts.filter(x => ids.has(x.id)), articles: e.articles[a.cle] || null },
+    };
+  });
+  faire('retirerArticles', { liste: retraits.map(({ remise, ...r }) => r) });
+  return () => faire('remettreArticles', { liste: retraits.map(r => r.remise) });
+}
+export const supprimerArticle = a => supprimerArticles([a]);
+
+/* ---------- synchronisation avec le dépôt (courses.json) ---------- */
+
+let depot = null; // { lire: () => Promise<{ texte, sha } | null>, ecrire: (texte, sha) => Promise<sha> }
+let minuterie = null;
+let enCours = null;
+
+/** Branche la liste sur le dépôt (null : liste gardée seulement sur ce téléphone). */
+export function brancherDepot(api) {
+  depot = api;
+  // Première fois : ce qui est déjà sur ce téléphone est proposé au dépôt (fusionné avec l'existant).
+  if (api && localStorage.getItem(SHA) === null && localStorage.getItem(ATTENTE) === null) {
+    const e = etat();
+    if (e.prevues.length || e.ajouts.length || Object.keys(e.articles).length) ecrire(ATTENTE, [{ type: 'fusionner', args: { etat: e } }]);
+  }
+}
+
+// Fusion de la première synchronisation : on ajoute ce qui manque sans rien retirer.
+OPS.fusionner = (e, { etat: local }) => {
+  for (const p of local.prevues) if (!e.prevues.some(x => x.slug === p.slug)) e.prevues.push(p);
+  for (const a of local.ajouts) OPS.ajouter(e, a);
+  e.articles = { ...local.articles, ...e.articles };
+  e.masques = { ...local.masques, ...e.masques };
+};
+
+function planifierEnvoi() {
+  clearTimeout(minuterie);
+  minuterie = setTimeout(() => synchroniser().catch(() => {}), 800); // regroupe les touches rapprochées
+}
+
+/**
+ * Récupère la liste du dépôt et y envoie nos opérations en attente.
+ * Renvoie true si la liste affichée a changé.
+ */
+export function synchroniser() {
+  if (!depot) return Promise.resolve(false);
+  enCours ||= (async () => {
+    try {
+      for (let essai = 0; essai < 5; essai++) {
+        const distant = await depot.lire();
+        const base = normaliser(distant ? JSON.parse(distant.texte) : null);
+        const attente = lire(ATTENTE, []);
+        if (!attente.length) {
+          const change = (distant?.sha ?? '') !== (lire(SHA, '') ?? '');
+          if (change) { ecrire(CLE, base); ecrire(SHA, distant?.sha ?? ''); }
+          return change;
+        }
+        const fusion = structuredClone(base);
+        for (const op of attente) OPS[op.type]?.(fusion, op.args);
+        try {
+          const sha = await depot.ecrire(`${JSON.stringify(fusion, null, 1)}\n`, distant?.sha);
+          // Des touches ont pu arriver pendant l'envoi : elles restent en attente, rejouées sur cette version.
+          const reste = lire(ATTENTE, []).slice(attente.length);
+          const local = structuredClone(fusion);
+          for (const op of reste) OPS[op.type]?.(local, op.args);
+          ecrire(ATTENTE, reste);
+          ecrire(SHA, sha);
+          ecrire(CLE, local);
+          if (reste.length) planifierEnvoi();
+          return true;
+        } catch (err) {
+          if (err.status === 409 || err.status === 422) continue; // modifiée entre-temps : on recommence
+          throw err;
+        }
+      }
+      return false;
+    } finally { enCours = null; }
+  })().then(change => { if (change) ecouteurs.forEach(fn => fn()); return change; });
+  return enCours;
 }

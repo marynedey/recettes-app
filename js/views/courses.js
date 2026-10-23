@@ -1,5 +1,6 @@
 // Onglet Courses : recettes prévues (et pour combien), liste complète par rayon,
-// cases à cocher et « j'en ai déjà » pour savoir ce qu'il manque.
+// cases à cocher et « j'en ai déjà » pour savoir ce qu'il manque. La liste est partagée
+// par tous les téléphones connectés au dépôt (courses.js) : on la relit toutes les 8 s.
 
 import * as store from '../store.js';
 import * as C from '../courses.js';
@@ -57,6 +58,7 @@ export function courses(root) {
             .sort((a, b) => infos(a).fait - infos(b).fait)
             .map(a => article(a, infos(a), ouverts.has(a.cle))).join('')}</div>`).join('')}
         <div class="actions-courses">
+          ${articles.some(a => infos(a).fait) ? `<button class="bouton secondaire petit" id="retirer-coches">${icon('check')}Retirer les articles cochés</button>` : ''}
           <button class="bouton secondaire petit" id="decocher">${icon('reset')}Tout décocher</button>
           <button class="bouton danger petit" id="vider">${icon('trash')}Vider les courses</button>
         </div>` : ''}`;
@@ -90,7 +92,7 @@ export function courses(root) {
         rendre();
         toast(`« ${a.nom} » retiré de la liste`, 5000, { texte: 'Annuler', faire: () => { annuler(); rendre(); } });
       });
-      const maj = f => { const s = C.etat(); s.articles[cle] = { ...s.articles[cle], ...f }; C.enregistrer(s); };
+      const maj = f => C.majArticle(cle, f);
       el.querySelector('input[type=checkbox]').addEventListener('change', ev => { maj({ coche: ev.target.checked }); rendre(); });
       el.querySelector('.art-corps').addEventListener('click', () => {
         if (ouverts.has(cle)) ouverts.delete(cle); else ouverts.add(cle);
@@ -104,21 +106,40 @@ export function courses(root) {
         root.querySelector(`.article[data-cle="${CSS.escape(cle)}"] .art-dispo input`)?.focus();
       });
     });
-    root.querySelector('#decocher')?.addEventListener('click', () => {
-      const s = C.etat(); s.articles = {}; C.enregistrer(s); rendre();
+    root.querySelector('#decocher')?.addEventListener('click', () => { C.toutDecocher(); rendre(); });
+    // Cochés ou « j'en ai assez » : on les retire tous d'un coup (annulable).
+    root.querySelector('#retirer-coches')?.addEventListener('click', () => {
+      const faits = articles.filter(a => infos(a).fait);
+      const annuler = C.supprimerArticles(faits);
+      rendre();
+      toast(`${faits.length} article${faits.length > 1 ? 's' : ''} retiré${faits.length > 1 ? 's' : ''}`, 5000, { texte: 'Annuler', faire: () => { annuler(); rendre(); } });
     });
     root.querySelector('#vider')?.addEventListener('click', () => {
       if (!confirm('Retirer toutes les recettes prévues et vider la liste ?')) return;
-      C.enregistrer({ prevues: [], ajouts: [], articles: {}, masques: {} }); ouverts = new Set(); rendre();
+      C.vider(); ouverts = new Set(); rendre();
     });
     root.querySelector('#partager')?.addEventListener('click', () => partager(articles, infos));
   };
 
   rendre();
+
+  // Liste partagée : modifications des autres téléphones (pas en pleine saisie ; le champ
+  // « Ajouter » vide garde le focus).
+  const desabonner = C.surChangement(() => {
+    const actif = document.activeElement;
+    if (!root.isConnected || (root.contains(actif) && actif.matches('input') && actif.value)) return;
+    const ajout = actif?.closest?.('#ajout-article');
+    rendre();
+    if (ajout) root.querySelector('#ajout-article input')?.focus();
+  });
+  C.synchroniser().catch(() => {});
+  const releve = setInterval(() => { if (!document.hidden) C.synchroniser().catch(() => {}); }, 8000);
+  return () => { desabonner(); clearInterval(releve); };
 }
 
 function article(a, info, ouvert) {
-  const qte = a.sansQuantite ? 'à vérifier' : C.texteQuantites(a);
+  // Sans quantité : rien pour un article ajouté à la main ; « selon la recette » sinon (« sel, poivre »).
+  const qte = !a.sansQuantite ? C.texteQuantites(a) : a.details.every(d => d.ajout) ? '' : 'selon la recette';
   const reste = info.manque
     ? (info.manque.n ? `il manque ${C.formatQuantite(info.manque.n, info.manque.unite)}` : 'j\'en ai assez ✓')
     : '';
@@ -230,9 +251,15 @@ function choisirRecettes(apres) {
   };
   afficher();
   el.querySelector('input').addEventListener('input', ev => afficher(ev.target.value));
-  const fermer = () => { el.remove(); document.body.classList.remove('sans-defilement'); apres(); };
-  el.querySelector('#f-fermer').addEventListener('click', fermer);
-  el.addEventListener('click', ev => { if (ev.target === el) fermer(); });
+  // Une entrée d'historique : le retour Android ferme la feuille au lieu de quitter les courses.
+  history.pushState({ feuille: true }, '');
+  const fermer = () => {
+    window.removeEventListener('popstate', fermer);
+    el.remove(); document.body.classList.remove('sans-defilement'); apres();
+  };
+  window.addEventListener('popstate', fermer);
+  el.querySelector('#f-fermer').addEventListener('click', () => history.back());
+  el.addEventListener('click', ev => { if (ev.target === el) history.back(); });
 }
 
 /** Depuis une fiche : ajoute (ou met à jour) la recette avec le nombre de personnes affiché. */

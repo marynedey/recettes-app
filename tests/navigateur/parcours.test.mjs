@@ -62,6 +62,8 @@ async function fauxGitHub(route) {
     }
     const corps = JSON.parse(req.postData() || '{}');
     if (req.method() === 'PUT') {
+      // Comme l'API GitHub : modifier un fichier existant exige la version (sha) qu'on modifie.
+      if (fichiers.has(chemin) && corps.sha !== sha(fichiers.get(chemin))) return json({ message: 'sha ne correspond pas' }, 409);
       const b = Buffer.from(corps.content, 'base64');
       fichiers.set(chemin, b);
       ecritures.push({ methode: 'PUT', chemin, message: corps.message, contenu: b.toString('utf8') });
@@ -571,7 +573,7 @@ test('courses : « Voir la liste » après l\'ajout, articles ajoutés à la mai
   assert.equal(await page.locator('.article').count(), 2, 'une ligne vide n\'ajoute rien');
   assert.equal(await page.evaluate(() => document.activeElement.name), 'texte', 'le champ reste prêt pour l\'article suivant');
   assert.equal(await article('Citrons').locator('.art-qte').textContent(), '2');
-  assert.equal(await article('Papier cuisson').locator('.art-qte').textContent(), 'à vérifier');
+  assert.equal(await article('Papier cuisson').locator('.art-qte').textContent(), '', 'rien d\'écrit pour un article sans quantité ajouté à la main');
 
   // Depuis une fiche : le message propose d'ouvrir la liste.
   await page.goto(BASE + '#/recette/tarte-tatin');
@@ -874,6 +876,7 @@ test('réglages : erreurs claires, version affichée, app non configurée', asyn
   await page.waitForURL(/#\/$/);
 
   await page.goto(BASE + '#/reglages');
+  await page.locator('#f-serveur').waitFor();
   const version = readFileSync(join(RACINE, 'js/views/reglages.js'), 'utf8').match(/VERSION = '([\d.]+)'/)[1];
   assert.match(await page.textContent('.page'), new RegExp(`version ${version.replace(/\./g, '\\.')}`));
 
@@ -1260,5 +1263,134 @@ test('écrans : toujours ouverts en haut, la position n\'est retrouvée qu\'au r
   await page.waitForURL(/#\/recette\/risotto/);
   assert.doesNotMatch(ecritures.find(w => w.chemin === 'recettes/risotto-aux-champignons.md').contenu, /difficulte/);
   assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('courses : le retour Android ferme « Quelles recettes ? » sans quitter les courses', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/');
+  await page.goto(BASE + '#/courses');
+  await page.click('#ajouter-recettes');
+  await page.click('.f-recette:has-text("Tarte tatin")');
+  await page.goBack();
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('.feuille').count(), 0, 'feuille fermée');
+  assert.match(page.url(), /#\/courses$/);
+  assert.equal(await page.locator('.prevue').count(), 1, 'la recette choisie est bien prévue');
+  // Le bouton « Terminé » de la feuille ferme aussi sans changer d'écran.
+  await page.click('#ajouter-recettes');
+  await page.click('#f-fermer');
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('.feuille').count(), 0);
+  assert.match(page.url(), /#\/courses$/);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('import annulé : la demande est retirée ; annulé trop tard, la recette créée est supprimée', async () => {
+  depotInitial();
+  await nouvellePage({ horloge: true });
+  // Annulé avant que GitHub ne s'en occupe : la demande disparaît du dépôt.
+  await page.goto(BASE + '#/ajouter');
+  await page.fill('[name=url]', 'https://www.marmiton.org/recettes/a.aspx');
+  await page.click('#go');
+  await page.locator('.banniere [data-annuler]').waitFor();
+  const demande = ecritures.find(w => w.chemin.startsWith('import/a-traiter/')).chemin;
+  page.once('dialog', d => d.accept());
+  await page.click('.banniere [data-annuler]');
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('.banniere').count(), 0);
+  assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === demande), 'demande retirée');
+  await page.reload();
+  await page.locator('.carte').first().waitFor();
+  assert.equal(await page.locator('.banniere').count(), 0, 'toujours annulé après rechargement');
+
+  // Annulé alors que GitHub l'avait déjà traité : la recette arrivée ensuite est supprimée, sans message.
+  await page.goto(BASE + '#/ajouter');
+  await page.fill('[name=url]', 'https://www.marmiton.org/recettes/b.aspx');
+  await page.click('#go');
+  await page.locator('.banniere [data-annuler]').waitFor();
+  const id = ecritures.filter(w => w.chemin.startsWith('import/a-traiter/')).at(-1).chemin.match(/a-traiter\/(.+)\.json/)[1];
+  fichiers.delete(`import/a-traiter/${id}.json`); // déjà pris par le workflow
+  fichiers.set('recettes/gaufres.md', Buffer.from('---\ntitre: Gaufres\n---\n## Ingrédients\n- 250 g farine\n\n## Étapes\n1. Cuire.\n'));
+  fichiers.set(`import/resultats/${id}.json`, Buffer.from(JSON.stringify({ statut: 'ok', slug: 'gaufres', titre: 'Gaufres' })));
+  page.once('dialog', d => d.accept());
+  await page.click('.banniere [data-annuler]');
+  await page.clock.fastForward(9000);
+  await page.waitForTimeout(1000);
+  assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === 'recettes/gaufres.md'), 'recette importée retirée');
+  assert.ok(!fichiers.has(`import/resultats/${id}.json`), 'résultat nettoyé');
+  assert.doesNotMatch(await page.textContent('body'), /« Gaufres » importée/);
+  assert.equal(await page.locator('.carte h3', { hasText: 'Gaufres' }).count(), 0);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('supprimer une recette depuis « Modifier »', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/modifier/tarte-tatin');
+  await page.locator('#suppr-recette').scrollIntoViewIfNeeded();
+  // Le bouton n'est pas caché sous la barre Annuler / Enregistrer.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  const b = await page.locator('#suppr-recette').boundingBox();
+  const barre = await page.locator('.barre-bas').boundingBox();
+  assert.ok(b.y + b.height <= barre.y + 1, 'visible au-dessus de la barre du bas');
+  page.once('dialog', d => d.dismiss());
+  await page.click('#suppr-recette');
+  assert.equal(ecritures.length, 0, 'annuler ne supprime rien');
+  page.once('dialog', d => d.accept());
+  await page.click('#suppr-recette');
+  await page.waitForURL(/#\/$/);
+  assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === 'recettes/tarte-tatin.md'));
+  await page.locator('.carte').first().waitFor();
+  assert.ok(!(await titresAccueil()).includes('Tarte tatin'));
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('courses partagées : deux téléphones, la même liste ; « Retirer les articles cochés »', async () => {
+  depotInitial();
+  await nouvellePage();
+  const telephone1 = page;
+  const article = (p, nom) => p.locator('.article', { has: p.locator('.art-nom', { hasText: new RegExp(`^${nom}$`) }) });
+  await telephone1.goto(BASE + '#/courses');
+  await telephone1.fill('#ajout-article input', '2 citrons');
+  await telephone1.press('#ajout-article input', 'Enter');
+  await telephone1.waitForTimeout(1500); // envoi regroupé
+  assert.match(fichiers.get('courses.json')?.toString() || '', /2 citrons/, 'liste écrite dans le dépôt');
+
+  // Un deuxième téléphone (autre jeton, même dépôt) voit la liste et la complète.
+  const ctx2 = await navigateur.newContext({ ...devices['Pixel 7'], locale: 'fr-FR' });
+  await ctx2.route('https://api.github.com/**', fauxGitHub);
+  const telephone2 = await ctx2.newPage();
+  telephone2.on('pageerror', e => erreurs.push(e.message));
+  await telephone2.goto(BASE);
+  await telephone2.evaluate(([jeton, depot]) => localStorage.setItem('mr.reglages', JSON.stringify({ jeton, depot })), [JETON, DEPOT]);
+  await telephone2.goto(BASE + '?t=2#/courses');
+  await article(telephone2, 'Citrons').waitFor();
+  await telephone2.fill('#ajout-article input', 'lait');
+  await telephone2.press('#ajout-article input', 'Enter');
+  await article(telephone2, 'Citrons').locator('.art-case').click(); // acheté
+  await telephone2.waitForTimeout(1500);
+
+  // Le premier téléphone le voit à son prochain relevé (toutes les 8 s sur l'écran Courses).
+  await article(telephone1, 'Lait').waitFor({ timeout: 12000 });
+  assert.match(await article(telephone1, 'Citrons').getAttribute('class'), /fait/, 'la case cochée est partagée');
+
+  // « Retirer les articles cochés » : les cochés disparaissent, chez tout le monde ; annulable.
+  await telephone1.click('#retirer-coches');
+  assert.equal(await article(telephone1, 'Citrons').count(), 0);
+  assert.equal(await article(telephone1, 'Lait').count(), 1);
+  await telephone1.click('.toast button.toast-action');
+  assert.equal(await article(telephone1, 'Citrons').count(), 1, 'annuler le remet');
+  await telephone1.click('#retirer-coches');
+  await telephone1.waitForTimeout(1500);
+  await telephone2.reload();
+  await article(telephone2, 'Lait').waitFor();
+  assert.equal(await article(telephone2, 'Citrons').count(), 0);
+  assert.deepEqual(erreurs, []);
+  await ctx2.close();
   await ctx.close();
 });
