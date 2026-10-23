@@ -18,12 +18,12 @@ App de recettes perso, pensée mobile (Android), en français. Maquette validée
 | `js/format.js` | front matter, Markdown ↔ objet recette, quantités (recalcul portions), minuteurs, ingrédients d'une étape. Sans dépendance navigateur, testé avec `node --test`. |
 | `js/github.js` | appels API GitHub (arbre, blobs, contents PUT/DELETE) |
 | `js/store.js` | cache local (texte brut des recettes par sha dans `localStorage`, photos dans le Cache API), favoris, historique, imports en attente |
-| `js/ui.js` | icônes SVG, visuels/placeholder dégradé, cartes, toast |
+| `js/ui.js` | icônes SVG, visuels/placeholder dégradé, cartes, toast, `ongletsGlissants` (onglets dans une piste qui suit le doigt et se cale en ~0,2 s, sans aimantation native ; hauteur = onglet affiché, chaque onglet observé) |
 | `js/minuteurs.js` | minuteurs du mode cuisine : plusieurs à la fois (clé `slug|étape|durée`), gardés dans `localStorage`, alarme, une notification par minuteur (heure de fin) ; notification touchée → étape du minuteur (événement `mr:etape` si le mode cuisine est déjà ouvert). Bouton « Recommencer » (étape 1, minuteurs de la recette arrêtés). Copie des minuteurs dans le Cache API (`mr-donnees`, `minuteurs.json`) pour le service worker. |
 | `js/push.js` | serveur des minuteurs (adresse dans les réglages, `serveur`) : abonnement Web Push, `PUT`/`DELETE /minuteurs/<appareil>|<id>` quand un minuteur démarre / s'arrête. Le `push` reçu par `sw.js` est vide : le SW retrouve le minuteur terminé dans la copie. |
 | `js/courses.js` | liste de courses : recettes prévues + nombre de personnes, ingrédients additionnés (g/kg, mL/cL/L, c. à café/soupe ; noms regroupés sans « fondu », « froid »…, œ/oe, pluriels), rayons, « j'en ai déjà » → ce qui manque, articles ajoutés à la main (`ajouts`), glisser pour retirer avec « Annuler » (`masques` : un article de recette revient si ses quantités changent) ; gardée dans `localStorage` (`mr.courses`) |
 | `js/app.js` | routeur par ancre (`#/`, `#/recettes`, `#/favoris`, `#/courses`, `#/recette/<slug>`, `#/cuisine/<slug>?p=<portions>`, `#/ajouter`, `#/modifier/<slug>`, `#/reglages`) |
-| `js/views/*.js` | un module par écran (accueil : tri A → Z / plus rapides / récentes / anciennes, retenu dans `mr.tri` ; ajout : « Par lien » et « Saisie manuelle » sur une piste qu'on glisse, comme les onglets d'une fiche) |
+| `js/views/*.js` | un module par écran (accueil : tri A → Z / plus rapides / récentes / anciennes, retenu dans `mr.tri` ; ajout : « Par lien » et « Saisie manuelle » sur une piste qu'on glisse, comme les onglets d'une fiche ; partage Android avec un lien → `#/ajouter?url=…&auto=1`, l'import part tout seul ; modifier : photos réordonnées par glisser-déposer) |
 
 Synchronisation : on lit l'arbre git du dépôt (`git/trees?recursive=1`) et on ne télécharge que les blobs dont le sha a changé.
 

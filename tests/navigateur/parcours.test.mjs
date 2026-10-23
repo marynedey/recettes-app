@@ -845,13 +845,21 @@ test('import par lien : résultat réussi, puis échec avec formulaire pré-remp
   await ctx.close();
 });
 
-test('« Partager → Mes Recettes » ouvre l\'import avec le lien', async () => {
+test('« Partager → Recettes » lance l\'import tout seul', async () => {
   depotInitial();
   await nouvellePage();
   await page.goto(BASE + '?text=' + encodeURIComponent('Regarde https://www.marmiton.org/recettes/x.aspx trop bon'));
+  await page.locator('.banniere .spinner').waitFor();
+  assert.match(page.url(), /#\/$/, 'retour à l\'accueil, import en cours');
+  const demande = ecritures.find(w => w.chemin.startsWith('import/a-traiter/'));
+  assert.equal(JSON.parse(demande.contenu).url, 'https://www.marmiton.org/recettes/x.aspx');
+  await page.goBack();
+  assert.equal(ecritures.filter(w => w.chemin.startsWith('import/a-traiter/')).length, 1, 'pas d\'import en double');
+
+  // Un partage sans lien ouvre simplement la page d'ajout.
+  await page.goto(BASE + '?text=' + encodeURIComponent('juste du texte'));
   await page.locator('#f-lien').waitFor();
-  assert.match(page.url(), /#\/ajouter\?url=/);
-  assert.equal(await page.inputValue('[name=url]'), 'https://www.marmiton.org/recettes/x.aspx');
+  assert.equal(await page.inputValue('[name=url]'), '');
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
@@ -991,6 +999,74 @@ test('serveur des minuteurs : réglage, minuteurs planifiés et annulés, notifi
   await page.evaluate(async () => (await caches.open('mr-donnees')).put(new URL('minuteurs.json', document.baseURI).href, new Response('{}')));
   notifs = await recevoir();
   assert.ok(notifs.some(n => n.titre === '⏰ Minuteur terminé'));
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('fiche : la hauteur suit chaque onglet, et le glissement se cale vite', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/recette/cinnamon-rolls');
+  await page.click('[role=tab][data-o=etapes]');
+  await page.waitForTimeout(400);
+  const hauteurs = () => page.evaluate(() => {
+    const piste = document.querySelector('#piste');
+    return { piste: piste.offsetHeight, panneau: piste.querySelector('[data-o=etapes]').offsetHeight };
+  });
+  let h = await hauteurs();
+  assert.equal(h.piste, h.panneau, 'toutes les étapes sont visibles');
+  // L'onglet Étapes grandit après coup (police chargée en retard, texte agrandi…) : la piste suit.
+  await page.evaluate(() => { document.querySelector('[data-o=etapes] .etape p').textContent += ' Encore du texte. '.repeat(30); });
+  await page.waitForTimeout(400);
+  h = await hauteurs();
+  assert.equal(h.piste, h.panneau, 'aucune étape coupée');
+
+  // Le doigt levé, la piste est calée sur l'onglet en moins de 0,3 s.
+  const zone = await page.locator('#piste').boundingBox();
+  const cdp = await ctx.newCDPSession(page);
+  const y = zone.y + 40;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y }] });
+  for (let k = 1; k <= 4; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 300 - 40 * k, y }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(300);
+  const { gauche, largeur } = await page.evaluate(() => { const p = document.querySelector('#piste'); return { gauche: p.scrollLeft, largeur: p.clientWidth }; });
+  assert.equal(await ongletActif(), 'Notes');
+  assert.ok(Math.abs(gauche - 2 * largeur) < 2, `calée (${gauche} / ${2 * largeur})`);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('modifier : réordonner les photos en les faisant glisser', async () => {
+  depotInitial();
+  fichiers.set('recettes/gateau.md', Buffer.from('---\ntitre: Gâteau\ncategorie: Desserts\nphotos: [photos/a.jpg, photos/b.jpg, photos/c.jpg]\n---\n## Ingrédients\n- 200 g farine\n\n## Étapes\n1. Cuire.\n'));
+  for (const [k, n] of [['a', 1], ['b', 2], ['c', 3]]) fichiers.set(`photos/${k}.jpg`, Buffer.concat([IMAGE, Buffer.alloc(n)]));
+  await nouvellePage();
+  await page.goto(BASE + '#/modifier/gateau');
+  await page.locator('.vignette-photo').nth(2).waitFor();
+  const centre = async i => { const b = await page.locator('.vignette-photo').nth(i).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+  const deplacer = async (de, vers) => {
+    const a = await centre(de), b = await centre(vers);
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a] });
+    for (let k = 1; k <= 8; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: a.x + (b.x - a.x) * k / 8, y: a.y + (b.y - a.y) * k / 8 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(300);
+  };
+  // La 3e photo glissée sur la 1re devient la principale ; les autres se décalent.
+  await deplacer(2, 0);
+  assert.equal(await page.locator('.vignette-photo').count(), 3);
+  // Lâchée hors d'une photo : rien ne change.
+  const a = await centre(1);
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: a.x, y: a.y + 300 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(300);
+  await page.click('#enreg');
+  await page.waitForURL(/#\/recette\/gateau$/);
+  const md = ecritures.find(w => w.chemin === 'recettes/gateau.md');
+  assert.match(md.contenu, /\nphotos: \[photos\/c\.jpg, photos\/a\.jpg, photos\/b\.jpg\]\n/);
+  assert.deepEqual(ecritures.filter(w => w.methode === 'DELETE'), [], 'aucune photo supprimée');
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

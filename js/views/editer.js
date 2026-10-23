@@ -2,7 +2,7 @@
 
 import * as store from '../store.js';
 import { CATEGORIES, DIFFICULTES, emptyRecipe, groupsToText, textToGroups, parseIngredient, nonRecalcule, listePhotos } from '../format.js';
-import { esc, icon, retour, toast } from '../ui.js';
+import { esc, icon, retour, toast, ongletsGlissants } from '../ui.js';
 
 function formulaire(root, r, { titrePage, onAnnuler }) {
   const m = r.meta;
@@ -20,7 +20,7 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
           <label class="bouton secondaire petit">${icon('image')}Galerie<input type="file" accept="image/*" multiple id="f-galerie"></label>
           <label class="bouton secondaire petit">${icon('camera')}Appareil photo<input type="file" accept="image/*" capture="environment" id="f-camera"></label>
         </div>
-        <small>La première est la photo principale. Touchez une photo pour la mettre en premier.</small>
+        <small>La première est la photo principale. Faites glisser une photo pour changer l'ordre, ou touchez-la pour la mettre en premier.</small>
       </div>
       <label class="champ"><span>Catégorie</span>
         <select name="categorie">${cats.map(c => `<option ${c === m.categorie ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
@@ -77,6 +77,40 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
   const form = root.querySelector('#form');
 
   const zonePhotos = form.querySelector('#photos');
+  let bloquerClic = 0;
+  // Glisser-déposer : la photo suit le doigt et prend la place de celle sur laquelle on la lâche.
+  const deplacable = el => {
+    let doigt = null, x0 = 0, y0 = 0, glisse = false, cible = null;
+    el.addEventListener('pointerdown', e => {
+      if (doigt !== null || e.button > 0 || e.target.closest('.vp-retirer')) return;
+      doigt = e.pointerId; x0 = e.clientX; y0 = e.clientY; glisse = false; cible = null;
+    });
+    el.addEventListener('pointermove', e => {
+      if (e.pointerId !== doigt) return;
+      const dx = e.clientX - x0, dy = e.clientY - y0;
+      if (!glisse && Math.hypot(dx, dy) > 6) { glisse = true; el.setPointerCapture(doigt); el.classList.add('deplacee'); }
+      if (!glisse) return;
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      cible = [...zonePhotos.children].find(v => {
+        const b = v.getBoundingClientRect();
+        return v !== el && e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom;
+      }) || null;
+      zonePhotos.querySelectorAll('.vignette-photo').forEach(v => v.classList.toggle('cible', v === cible));
+    });
+    const fin = e => {
+      if (e.pointerId !== doigt) return;
+      doigt = null;
+      if (!glisse) return;
+      bloquerClic = Date.now();
+      if (cible && e.type === 'pointerup') {
+        photos.splice(+cible.dataset.i, 0, ...photos.splice(+el.dataset.i, 1));
+        photosModifiees = true;
+      }
+      afficherPhotos();
+    };
+    el.addEventListener('pointerup', fin);
+    el.addEventListener('pointercancel', fin);
+  };
   const afficherPhotos = () => {
     zonePhotos.innerHTML = photos.map((p, i) => `<div class="vignette-photo" data-i="${i}">
         <button type="button" class="vp-image" aria-label="${i ? 'Mettre en photo principale' : 'Photo principale'}"></button>
@@ -88,9 +122,10 @@ function formulaire(root, r, { titrePage, onAnnuler }) {
       const url = p.url || await store.photoUrlChemin(p.chemin);
       if (url && el.isConnected) el.querySelector('.vp-image').style.backgroundImage = `url("${url}")`;
     });
+    zonePhotos.querySelectorAll('.vignette-photo').forEach(deplacable);
     zonePhotos.querySelectorAll('.vp-image').forEach(b => b.addEventListener('click', () => {
       const i = +b.closest('.vignette-photo').dataset.i;
-      if (!i) return;
+      if (!i || Date.now() - bloquerClic < 400) return;
       photos.unshift(...photos.splice(i, 1));
       photosModifiees = true;
       afficherPhotos();
@@ -187,8 +222,7 @@ export function editer(root, { params }) {
 export function ajouter(root, { query }) {
   if (exigeConfig(root)) return;
   const url = query.get('url') || '';
-  const ordre = ['lien', 'manuel'];
-  let onglet = query.get('manuel') === '1' ? 'manuel' : 'lien';
+  const onglet = query.get('manuel') === '1' ? 'manuel' : 'lien';
   root.className = 'page sans-tabbar';
   root.innerHTML = `<div class="retour-tete"><button class="btn-rond" id="retour" aria-label="Retour">${icon('back')}</button>
       <h1 class="titre-page">Nouvelle recette</h1></div>
@@ -207,7 +241,7 @@ export function ajouter(root, { query }) {
             <button class="bouton large" id="go">${icon('link')}Importer la recette</button>
           </form>
         </div>
-        <p class="aide" style="margin-top:16px">Astuce : depuis Chrome ou l'app Marmiton, utilisez <b>Partager → Mes Recettes</b>.</p>
+        <p class="aide" style="margin-top:16px">Astuce : depuis Chrome ou l'app Marmiton, utilisez <b>Partager → Recettes</b> : l'import part tout seul.</p>
       </div>
       <div class="panneau" role="tabpanel" data-o="manuel"></div>
     </div>`;
@@ -233,29 +267,14 @@ export function ajouter(root, { query }) {
     }
   });
 
+  // Lien reçu par « Partager → Recettes » : on lance l'import directement.
+  if (url && query.get('auto') === '1') panneaux.lien.querySelector('#f-lien').requestSubmit();
+
   const r = emptyRecipe();
   if (url) r.meta.source = url;
   formulaire(panneaux.manuel, r, { onAnnuler: () => retour() });
 
-  // Même glissement que les onglets d'une fiche (piste native, la hauteur suit l'onglet affiché).
-  const onglets = root.querySelectorAll('[role=tab]');
-  const ajusterHauteur = () => { piste.style.height = `${panneaux[onglet].offsetHeight}px`; };
-  const marquer = o => {
-    onglet = o;
-    onglets.forEach(b => b.setAttribute('aria-selected', b.dataset.o === o));
-    // La barre Annuler / Enregistrer ne concerne que la saisie manuelle.
-    root.classList.toggle('sur-lien', o === 'lien');
-    ajusterHauteur();
-  };
-  const ouvrir = (o, doux = true) => {
-    marquer(o);
-    piste.scrollTo({ left: ordre.indexOf(o) * piste.clientWidth, behavior: doux ? 'smooth' : 'instant' });
-  };
-  onglets.forEach(b => b.addEventListener('click', () => ouvrir(b.dataset.o)));
-  piste.addEventListener('scroll', () => {
-    const o = ordre[Math.round(piste.scrollLeft / piste.clientWidth)];
-    if (o && o !== onglet) marquer(o);
-  }, { passive: true });
-  Object.values(panneaux).forEach(p => new ResizeObserver(ajusterHauteur).observe(p));
-  ouvrir(onglet, false);
+  // Même glissement que les onglets d'une fiche ; la barre Annuler / Enregistrer
+  // ne concerne que la saisie manuelle.
+  ongletsGlissants(root, piste, { depart: onglet, surChangement: o => root.classList.toggle('sur-lien', o === 'lien') });
 }
