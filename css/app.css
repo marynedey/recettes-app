@@ -119,6 +119,30 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 }
 .recherche input { flex: 1; border: 0; outline: 0; background: none; color: var(--encre); font-size: 16px; min-width: 0; }
 .recherche input::placeholder { color: var(--gris); }
+/* « Avec ce que j'ai » */
+.raccourci-frigo { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 12px 14px; border-radius: 16px; background: var(--pastel); color: var(--brun); text-decoration: none; }
+.raccourci-frigo > svg.i:first-child { width: 26px; height: 26px; flex: none; }
+.raccourci-frigo span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.raccourci-frigo b { font-weight: 600; color: var(--encre); }
+.raccourci-frigo small { font-size: 13px; }
+.raccourci-frigo > svg.i:last-child { width: 18px; height: 18px; flex: none; }
+.puces-frigo { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 16px; }
+.puces-frigo:empty { display: none; }
+.puces-frigo span { padding: 6px 12px; border-radius: 999px; background: var(--doux); color: var(--brun); font-size: 14px; font-weight: 500; }
+.liste-frigo { display: flex; flex-direction: column; gap: 10px; }
+.ligne-frigo { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: var(--carte); border: 1px solid var(--bordure); color: inherit; text-decoration: none; }
+.ligne-frigo .vignette { width: 56px; height: 56px; border-radius: 12px; flex: none; }
+.ligne-frigo .vignette .assiette svg.i { width: 20px; height: 20px; }
+.ligne-frigo > div { flex: 1; min-width: 0; }
+.ligne-frigo h3 { font-size: 16px; font-weight: 600; margin: 0 0 3px; }
+.ligne-frigo p { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.ligne-frigo .manque { color: var(--brun); }
+.ligne-frigo .tout-la { color: var(--ok-texte); font-weight: 600; }
+.ligne-frigo .part { font-weight: 600; color: var(--ok-texte); flex: none; font-size: 14px; }
+.placard { margin-top: 22px; color: var(--gris); font-size: 14px; }
+.placard summary { cursor: pointer; min-height: 32px; }
+.placard summary b { color: var(--encre); font-weight: 500; }
+.placard .champ { margin-top: 10px; }
 .puces { display: flex; gap: 8px; overflow-x: auto; margin: 0 -20px; padding: 2px 20px 4px; scrollbar-width: none; }
 .puces::-webkit-scrollbar { display: none; }
 .puce {
