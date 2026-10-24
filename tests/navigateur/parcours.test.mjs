@@ -97,7 +97,7 @@ async function nouvellePage({ configure = true, horloge = false, avant = null, s
     await page.locator('.tuile-recettes', { hasText: /\d recettes?/ }).waitFor();
     // La plupart des parcours partent de la liste des recettes.
     await page.goto(BASE + '#/recettes');
-    await page.locator('.carte').first().waitFor();
+    await page.locator('.ligne-recette').first().waitFor();
   }
 }
 
@@ -173,7 +173,7 @@ test('accueil : raccourcis (recettes, courses, favoris, frigo, ajouter) et reche
     ['#/frigo', 'Avec ce que j\'ai', 'Selon mon frigo'],
     ['#/ajouter', 'Ajouter', 'Par lien ou à la main'],
   ]);
-  assert.equal(await page.locator('.carte').count(), 0, 'plus de grille de recettes sur l\'accueil');
+  assert.equal(await page.locator('.carte, .ligne-recette').count(), 0, 'plus de liste de recettes sur l\'accueil');
   // La recherche affiche ses résultats à la place des raccourcis.
   await page.fill('input[type=search]', 'champignon');
   assert.deepEqual(await page.locator('#resultats .ligne-recette h3').allTextContents(), ['Risotto aux champignons']);
@@ -181,7 +181,7 @@ test('accueil : raccourcis (recettes, courses, favoris, frigo, ajouter) et reche
   await page.fill('input[type=search]', '');
   await page.click('.tuile-recettes');
   await page.waitForURL(/#\/recettes$/);
-  await page.locator('#resultats .carte').first().waitFor();
+  await page.locator('#resultats .ligne-recette').first().waitFor();
   // Une recette prévue aux courses : le nombre d'articles à acheter apparaît.
   await page.goto(BASE + '#/recette/tarte-tatin');
   await page.locator('.fiche-feuille h1').waitFor();
@@ -195,12 +195,12 @@ test('accueil : raccourcis (recettes, courses, favoris, frigo, ajouter) et reche
 test('recettes : grille, recherche et filtres', async () => {
   depotInitial();
   await nouvellePage();
-  assert.equal(await page.locator('#resultats .carte').count(), 3);
+  assert.equal(await page.locator('#resultats .ligne-recette').count(), 3);
   await page.fill('input[type=search]', 'champignon');
-  assert.equal(await page.locator('#resultats .carte').count(), 1, 'la recherche porte aussi sur les ingrédients');
+  assert.equal(await page.locator('#resultats .ligne-recette').count(), 1, 'la recherche porte aussi sur les ingrédients');
   await page.fill('input[type=search]', '');
   await page.click('.puce[data-cat=Desserts]');
-  assert.equal(await page.locator('#resultats .carte').count(), 2);
+  assert.equal(await page.locator('#resultats .ligne-recette').count(), 2);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
@@ -305,10 +305,10 @@ test('hors ligne : l\'app et les recettes restent consultables', async () => {
   await nouvellePage();
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
-  await page.locator('.carte').first().waitFor();
+  await page.locator('.ligne-recette').first().waitFor();
   await ctx.setOffline(true);
   await page.reload();
-  await page.locator('.carte').first().waitFor();
+  await page.locator('.ligne-recette').first().waitFor();
   await page.click('text=Tarte tatin');
   await page.locator('.fiche-feuille h1').waitFor();
   assert.equal(await page.textContent('.fiche-feuille h1'), 'Tarte tatin');
@@ -550,7 +550,7 @@ test('courses : recettes prévues, liste additionnée par rayon, cases et « j\'
 
 /* ---------- autres écrans et cas particuliers ---------- */
 
-const titresRecettes = () => page.locator('#resultats .carte h3').allTextContents();
+const titresRecettes = () => page.locator('#resultats .ligne-recette h3').allTextContents();
 
 test('recettes : tri (A → Z, plus rapides, plus récentes, plus anciennes) retenu, sans « Cuisinées récemment »', async () => {
   depotInitial();
@@ -559,12 +559,14 @@ test('recettes : tri (A → Z, plus rapides, plus récentes, plus anciennes) ret
   await nouvellePage();
   await page.evaluate(() => localStorage.setItem('mr.historique', JSON.stringify(['tarte-tatin'])));
   await page.reload();
-  await page.locator('#resultats .carte').nth(4).waitFor();
+  await page.locator('#resultats .ligne-recette').nth(4).waitFor();
   assert.equal(await page.locator('text=Cuisinées récemment').count(), 0);
 
   assert.deepEqual(await titresRecettes(), ['Cinnamon rolls', 'Crêpes', 'Risotto aux champignons', 'Salade', 'Tarte tatin'], 'A → Z par défaut');
+  assert.deepEqual(await page.locator('.lettre').allTextContents(), ['C', 'R', 'S', 'T'], 'lettres en A → Z');
   await page.selectOption('#tri', 'rapide');
   assert.deepEqual(await titresRecettes(), ['Salade', 'Risotto aux champignons', 'Tarte tatin', 'Cinnamon rolls', 'Crêpes'], 'durée inconnue en dernier');
+  assert.equal(await page.locator('.lettre').count(), 0, 'pas de lettres dans les autres tris');
   await page.selectOption('#tri', 'recente');
   assert.deepEqual(await titresRecettes(), ['Crêpes', 'Cinnamon rolls', 'Risotto aux champignons', 'Tarte tatin', 'Salade']);
   await page.selectOption('#tri', 'ancienne');
@@ -572,7 +574,7 @@ test('recettes : tri (A → Z, plus rapides, plus récentes, plus anciennes) ret
 
   // Le choix est retenu, et se combine avec les filtres.
   await page.reload();
-  await page.locator('#resultats .carte').nth(4).waitFor();
+  await page.locator('#resultats .ligne-recette').nth(4).waitFor();
   assert.equal(await page.inputValue('#tri'), 'ancienne');
   await page.click('.puce[data-cat=Desserts]');
   assert.deepEqual(await titresRecettes(), ['Cinnamon rolls', 'Tarte tatin', 'Crêpes']);
@@ -585,7 +587,6 @@ test('recettes : tri (A → Z, plus rapides, plus récentes, plus anciennes) ret
 test('onglets Recettes et Favoris', async () => {
   depotInitial();
   await nouvellePage();
-  await page.click('#vue');
   await page.locator('.lettre').nth(2).waitFor();
   assert.deepEqual(await page.locator('.lettre').allTextContents(), ['C', 'R', 'T']);
   await page.fill('input[type=search]', 'pommes');
@@ -751,7 +752,7 @@ test('mode cuisine : recommencer, messages au pluriel, retour après « Terminé
   await page.waitForTimeout(300);
   assert.match(page.url(), /#\/recettes$/);
   assert.equal(await page.locator('.cuisine-corps').count(), 0);
-  assert.ok(await page.locator('.carte').first().isVisible());
+  assert.ok(await page.locator('.ligne-recette').first().isVisible());
 
   // Mode cuisine ouvert directement (notification, app fermée) : « Terminé » mène à la fiche,
   // et « retour » depuis la fiche à l'accueil, jamais de nouveau au mode cuisine.
@@ -859,7 +860,7 @@ test('modifier puis supprimer une recette', async () => {
   await page.waitForURL(/#\/$/);
   assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === 'recettes/risotto-aux-champignons.md'));
   await page.goto(BASE + '#/recettes');
-  await page.locator('#resultats .carte').first().waitFor();
+  await page.locator('#resultats .ligne-recette').first().waitFor();
   assert.ok(!(await titresRecettes()).includes('Risotto aux champignons'));
   assert.deepEqual(erreurs, []);
   await ctx.close();
@@ -881,7 +882,7 @@ test('import par lien : résultat réussi, puis échec avec formulaire pré-remp
   await page.clock.fastForward(9000);
   await page.locator('.toast.visible').waitFor();
   assert.match(await page.textContent('.toast'), /« Gaufres » importée/);
-  await page.locator('.carte h3', { hasText: 'Gaufres' }).waitFor();
+  await page.locator('.ligne-recette h3', { hasText: 'Gaufres' }).waitFor();
   assert.ok(!fichiers.has('import/resultats/a1.json'), 'résultat nettoyé');
 
   await attendre('a2', { statut: 'erreur', message: 'Pas de recette trouvée sur cette page.' });
@@ -1368,7 +1369,7 @@ test('import annulé : la demande est retirée ; annulé trop tard, la recette c
   assert.equal(await page.locator('.banniere').count(), 0);
   assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === demande), 'demande retirée');
   await page.reload();
-  await page.locator('.tuile-recettes, .carte').first().waitFor();
+  await page.locator('.tuile-recettes, .ligne-recette').first().waitFor();
   assert.equal(await page.locator('.banniere').count(), 0, 'toujours annulé après rechargement');
 
   // Annulé alors que GitHub l'avait déjà traité : la recette arrivée ensuite est supprimée, sans message.
@@ -1387,7 +1388,7 @@ test('import annulé : la demande est retirée ; annulé trop tard, la recette c
   assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === 'recettes/gaufres.md'), 'recette importée retirée');
   assert.ok(!fichiers.has(`import/resultats/${id}.json`), 'résultat nettoyé');
   assert.doesNotMatch(await page.textContent('body'), /« Gaufres » importée/);
-  assert.equal(await page.locator('.carte h3', { hasText: 'Gaufres' }).count(), 0);
+  assert.equal(await page.locator('.ligne-recette h3', { hasText: 'Gaufres' }).count(), 0);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
@@ -1410,7 +1411,7 @@ test('supprimer une recette depuis « Modifier »', async () => {
   await page.waitForURL(/#\/$/);
   assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === 'recettes/tarte-tatin.md'));
   await page.goto(BASE + '#/recettes');
-  await page.locator('.carte').first().waitFor();
+  await page.locator('.ligne-recette').first().waitFor();
   assert.ok(!(await titresRecettes()).includes('Tarte tatin'));
   assert.deepEqual(erreurs, []);
   await ctx.close();
@@ -1466,7 +1467,7 @@ for (const sombre of [true, false]) test(`mode ${sombre ? 'sombre' : 'clair'} : 
   await nouvellePage({ sombre });
   const couleurs = sel => page.evaluate(s => { const c = getComputedStyle(document.querySelector(s)); return { fond: c.backgroundColor, texte: c.color }; }, sel);
   assert.equal((await couleurs('body')).fond, sombre ? 'rgb(28, 23, 18)' : 'rgb(246, 240, 230)');
-  assert.equal((await couleurs('.carte')).fond, sombre ? 'rgb(39, 32, 26)' : 'rgb(255, 251, 244)');
+  assert.equal((await couleurs('.ligne-recette')).fond, sombre ? 'rgb(39, 32, 26)' : 'rgb(255, 251, 244)');
   assert.equal(await page.getAttribute('meta[name=theme-color]', 'content'), sombre ? '#1C1712' : '#F6F0E6', 'barre du téléphone');
   // Pastille avec un lien (« Bon appétit ! · Noter dans le carnet ») : le lien se lit sur le fond de la pastille.
   const contrastePastille = await page.evaluate(async () => {

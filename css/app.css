@@ -141,8 +141,6 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .tuile-recettes > svg.i { position: relative; width: 44px; height: 44px; padding: 11px; box-sizing: border-box; border-radius: 50%; background: var(--carte); color: var(--accent-texte); flex: none; }
 .tuile-ajouter b { color: var(--accent-texte); }
 #bannieres:not(:empty) { margin-bottom: 14px; }
-.boutons-entete { display: flex; gap: 8px; }
-.boutons-entete .btn-rond[aria-pressed="true"] { background: var(--encre); border-color: var(--encre); color: var(--carte); }
 .puces-frigo { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 16px; }
 .puces-frigo:empty { display: none; }
 .puces-frigo span { padding: 6px 12px; border-radius: 999px; background: var(--doux); color: var(--brun); font-size: 14px; font-weight: 500; }
@@ -218,7 +216,7 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
   display: flex; gap: 14px; align-items: center; padding: 10px; background: var(--carte);
   border: 1px solid var(--bordure); border-radius: 16px; text-decoration: none; color: inherit;
 }
-.ligne-recette .vignette { width: 72px; height: 72px; border-radius: 12px; flex: none; }
+.ligne-recette .vignette { width: 104px; height: 84px; border-radius: 12px; flex: none; }
 .ligne-recette .vignette .assiette svg.i { width: 22px; height: 22px; }
 .ligne-recette h3 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
 .lettre { font-family: var(--serif); color: var(--accent-texte); font-size: 15px; font-weight: 600; margin: 14px 0 2px 4px; }

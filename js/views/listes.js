@@ -1,4 +1,4 @@
-// Accueil (raccourcis), Recettes (grille ou liste alphabétique), Favoris.
+// Accueil (raccourcis), Recettes (liste triée), Favoris.
 
 import * as store from '../store.js';
 import * as C from '../courses.js';
@@ -138,12 +138,11 @@ export function accueil(root) {
   return C.surChangement(() => { if (!q.trim()) afficher(); });
 }
 
-// Recettes : toutes les recettes, en grille (catégories, tri) ou en liste alphabétique.
+// Recettes : toutes les recettes en liste (catégories, tri ; lettres en A → Z).
 export function listeRecettes(root) {
   const etat = JSON.parse(sessionStorage.getItem('mr.filtre') || '{"q":"","cat":"Tout"}');
   let tri = 'alpha';
-  let vue = 'grille';
-  try { tri = localStorage.getItem('mr.tri') || 'alpha'; vue = localStorage.getItem('mr.vue') || 'grille'; } catch { /* stockage indisponible */ }
+  try { tri = localStorage.getItem('mr.tri') || 'alpha'; } catch { /* stockage indisponible */ }
   const toutes = store.recettes();
   const cats = ['Tout', ...CATEGORIES.filter(c => toutes.some(r => r.meta.categorie === c)),
     ...[...new Set(toutes.map(r => r.meta.categorie))].filter(c => !CATEGORIES.includes(c))];
@@ -152,10 +151,7 @@ export function listeRecettes(root) {
   root.className = 'page';
   root.innerHTML = `
     <div class="entete"><h1 class="titre-page">Recettes</h1>
-      <div class="boutons-entete">
-        <button class="btn-rond" id="vue" aria-pressed="${vue === 'liste'}" aria-label="Affichage en liste">${icon('liste')}</button>
-        <button class="btn-rond" id="sync" aria-label="Synchroniser">${icon('refresh')}</button>
-      </div></div>
+      <button class="btn-rond" id="sync" aria-label="Synchroniser">${icon('refresh')}</button></div>
     <label class="recherche">${icon('search')}<span class="sr">Rechercher</span>
       <input type="search" placeholder="Rechercher parmi ${pluriel(toutes.length, 'recette')}" value="${esc(etat.q)}" enterkeyhint="search"></label>
     <div class="puces" role="group" aria-label="Catégories">${cats.map(c =>
@@ -170,21 +166,22 @@ export function listeRecettes(root) {
     sessionStorage.setItem('mr.filtre', JSON.stringify(etat));
     if (!store.estConfigure() && !toutes.length) { resultats.innerHTML = nonConfigure(); return; }
     const liste = toutes.filter(r => (etat.cat === 'Tout' || r.meta.categorie === etat.cat) && correspond(r, etat.q));
-    trier(liste, vue === 'liste' ? 'alpha' : tri);
+    trier(liste, tri);
     const titre = !etat.q && etat.cat === 'Tout' ? pluriel(liste.length, 'recette')
       : `${liste.length} résultat${liste.length > 1 ? 's' : ''}`;
     let html = `<div class="section-tete"><h2>${titre}</h2>
-      ${vue === 'grille' ? `<label class="tri">${icon('tri')}<span class="sr">Trier</span>
-        <select id="tri">${TRIS.map(([v, lib]) => `<option value="${v}" ${v === tri ? 'selected' : ''}>${lib}</option>`).join('')}</select></label>` : ''}</div>`;
-    if (liste.length && vue === 'liste') {
+      <label class="tri">${icon('tri')}<span class="sr">Trier</span>
+        <select id="tri">${TRIS.map(([v, lib]) => `<option value="${v}" ${v === tri ? 'selected' : ''}>${lib}</option>`).join('')}</select></label></div>`;
+    if (liste.length) {
       let lettre = '';
       html += `<div class="liste">${liste.map(r => {
+        if (tri !== 'alpha') return ligneRecette(r);
         const l = sansAccents(r.meta.titre[0] || '#').toUpperCase();
         const tete = l !== lettre ? `<div class="lettre">${esc(l)}</div>` : '';
         lettre = l;
         return tete + ligneRecette(r);
       }).join('')}</div>`;
-    } else if (liste.length) html += `<div class="grille">${liste.map(carteRecette).join('')}</div>`;
+    }
     else if (!toutes.length) html += `<div class="vide"><div class="serif">Aucune recette pour l'instant</div><p>Synchronisation en cours, ou ajoutez votre première recette.</p></div>`;
     else html += `<div class="vide"><p>Rien ne correspond à « ${esc(etat.q)} ».</p></div>`;
     resultats.innerHTML = html;
@@ -203,12 +200,6 @@ export function listeRecettes(root) {
     root.querySelectorAll('.puce').forEach(x => x.setAttribute('aria-pressed', x === b));
     afficher();
   }));
-  root.querySelector('#vue').addEventListener('click', e => {
-    vue = vue === 'liste' ? 'grille' : 'liste';
-    e.currentTarget.setAttribute('aria-pressed', vue === 'liste');
-    try { localStorage.setItem('mr.vue', vue); } catch { /* stockage indisponible */ }
-    afficher();
-  });
   root.querySelector('#sync').addEventListener('click', async e => {
     const b = e.currentTarget;
     b.disabled = true; b.innerHTML = '<span class="spinner"></span>';
