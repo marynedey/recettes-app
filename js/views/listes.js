@@ -97,7 +97,7 @@ function tuile(href, ic, titre, detail, cls = '') {
 export function accueil(root) {
   let q = sessionStorage.getItem('mr.rechercheAccueil') || '';
   const toutes = store.recettes();
-  root.className = 'page';
+  root.className = 'page accueil';
   root.innerHTML = `
     <div class="entete">
       <div><p class="salut">${esc(salutation())}</p><h1 class="grand-titre">Qu'est-ce qu'on cuisine ce soir&nbsp;?</h1></div>

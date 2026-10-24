@@ -140,6 +140,24 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 .tuile-recettes small { color: #fff; font-size: 14px; font-weight: 500; }
 .tuile-recettes > svg.i { position: relative; width: 44px; height: 44px; padding: 11px; box-sizing: border-box; border-radius: 50%; background: var(--carte); color: var(--accent-texte); flex: none; }
 .tuile-ajouter b { color: var(--accent-texte); }
+/* L'accueil tient pile dans l'écran : les tuiles se partagent la hauteur entre la recherche et la barre du bas
+   (plus grandes sur un grand téléphone, plus petites sur un petit ; en dessous du minimum, la page défile). */
+.accueil { min-height: 100dvh; display: flex; flex-direction: column; }
+.accueil #resultats { flex: 1 1 0; display: flex; flex-direction: column; }
+.accueil .tuiles { flex: 1 1 0; grid-auto-rows: minmax(96px, 1fr); }
+.accueil .tuile { min-height: 0; }
+/* Écran peu haut : icône à côté du texte, marges resserrées, pour que tout tienne. */
+@media (max-height: 820px) {
+  .accueil .entete .grand-titre { font-size: 28px; }
+  .accueil .recherche { margin: 16px 0 12px; }
+  .accueil .tuiles { gap: 10px; grid-auto-rows: minmax(64px, 1fr); }
+  .accueil .tuile:not(.tuile-recettes) { flex-direction: row; align-items: center; justify-content: flex-start; padding: 10px 12px; gap: 10px; }
+  .accueil .tuile-icone { width: 36px; height: 36px; border-radius: 12px; flex: none; }
+  .accueil .tuile-icone svg.i { width: 20px; height: 20px; }
+  .accueil .tuile-txt b { font-size: 16px; }
+  .accueil .tuile-recettes { padding: 14px 16px; }
+  .accueil .tuile-recettes b { font-size: 23px; }
+}
 #bannieres:not(:empty) { margin-bottom: 14px; }
 .puces-frigo { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 16px; }
 .puces-frigo:empty { display: none; }
