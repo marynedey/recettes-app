@@ -1,6 +1,7 @@
-// Accueil, liste alphabétique, favoris, courses.
+// Accueil (raccourcis), Recettes (grille ou liste alphabétique), Favoris.
 
 import * as store from '../store.js';
+import * as C from '../courses.js';
 import { CATEGORIES, sansAccents } from '../format.js';
 import { esc, icon, carteRecette, ligneRecette, chargerPhotos, tempsTotal, toast } from '../ui.js';
 
@@ -58,7 +59,7 @@ function nonConfigure() {
     <a class="bouton" href="#/reglages">${icon('settings')}Ouvrir les réglages</a></div>`;
 }
 
-// Tris proposés sur l'accueil (le choix est retenu sur le téléphone).
+// Tris proposés sur l'écran Recettes (le choix est retenu sur le téléphone).
 const TRIS = [['alpha', 'A → Z'], ['rapide', 'Plus rapides'], ['recente', 'Plus récentes'], ['ancienne', 'Plus anciennes']];
 
 /** Trie la liste sur place. Durée inconnue : en dernier ; à égalité, ordre alphabétique. */
@@ -74,15 +75,28 @@ export function trier(liste, tri) {
   return liste.sort(comparer);
 }
 
-export function accueil(root) {
-  const etat = JSON.parse(sessionStorage.getItem('mr.filtre') || '{"q":"","cat":"Tout"}');
-  let tri = 'alpha';
-  try { tri = localStorage.getItem('mr.tri') || 'alpha'; } catch { /* stockage indisponible */ }
-  const toutes = store.recettes();
-  const cats = ['Tout', ...CATEGORIES.filter(c => toutes.some(r => r.meta.categorie === c)),
-    ...[...new Set(toutes.map(r => r.meta.categorie))].filter(c => !CATEGORIES.includes(c))];
-  if (!cats.includes(etat.cat)) etat.cat = 'Tout';
+/** Articles de la liste de courses qu'il reste à acheter (même calcul que l'écran Courses). */
+function resteAAcheter() {
+  const e = C.etat();
+  const prevues = e.prevues.map(p => ({ ...p, recette: store.recette(p.slug) })).filter(p => p.recette);
+  return C.listeDeCourses(prevues, e.ajouts).filter(a => !C.estMasque(a, e.masques)).filter(a => {
+    const s = e.articles[a.cle] || {};
+    const m = C.manque(a, s.dispo);
+    return !s.coche && !(m && m.n === 0);
+  }).length;
+}
 
+const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
+
+function tuile(href, ic, titre, detail, cls = '') {
+  return `<a class="tuile ${cls}" href="${href}"><span class="tuile-icone">${icon(ic)}</span>
+    <span class="tuile-txt"><b>${esc(titre)}</b><small>${esc(detail)}</small></span></a>`;
+}
+
+// Accueil : des raccourcis vers les écrans de l'app ; la recherche affiche ses résultats à la place.
+export function accueil(root) {
+  let q = sessionStorage.getItem('mr.rechercheAccueil') || '';
+  const toutes = store.recettes();
   root.className = 'page';
   root.innerHTML = `
     <div class="entete">
@@ -90,8 +104,60 @@ export function accueil(root) {
       <a class="btn-rond" href="#/reglages" aria-label="Réglages">${icon('settings')}</a>
     </div>
     <label class="recherche">${icon('search')}<span class="sr">Rechercher</span>
-      <input type="search" placeholder="Recette, ingrédient…" value="${esc(etat.q)}" enterkeyhint="search"></label>
-    <a class="raccourci-frigo" href="#/frigo">${icon('frigo')}<span><b>Avec ce que j'ai</b><small>Mes ingrédients, et les recettes qui vont avec</small></span>${icon('arrow')}</a>
+      <input type="search" placeholder="Recette, ingrédient…" value="${esc(q)}" enterkeyhint="search"></label>
+    <div id="bannieres">${bannieres()}</div>
+    <div id="resultats"></div>`;
+  brancherBannieres(root);
+
+  const zone = root.querySelector('#resultats');
+  const afficher = () => {
+    sessionStorage.setItem('mr.rechercheAccueil', q);
+    if (!store.estConfigure() && !toutes.length) { zone.innerHTML = nonConfigure(); return; }
+    if (q.trim()) {
+      const liste = trier(toutes.filter(r => correspond(r, q)), 'alpha');
+      zone.innerHTML = `<div class="liste">${liste.map(ligneRecette).join('')
+        || `<div class="vide"><p>Rien ne correspond à « ${esc(q)} ».</p></div>`}</div>`;
+      chargerPhotos(zone, store.recette);
+      return;
+    }
+    const nbFav = store.favoris().filter(s => store.recette(s)).length;
+    const reste = resteAAcheter();
+    const prevues = C.etat().prevues.length;
+    zone.innerHTML = `<nav class="tuiles" aria-label="Raccourcis">
+      <a class="tuile tuile-recettes" href="#/recettes"><span class="tuile-txt"><b>Mes recettes</b>
+        <small>${toutes.length ? pluriel(toutes.length, 'recette') : 'Aucune pour l\'instant'}</small></span>${icon('chevron')}</a>
+      ${tuile('#/courses', 'cart', 'Courses', reste ? `${reste} à acheter` : prevues ? 'Tout est prêt' : 'Liste vide')}
+      ${tuile('#/favoris', 'heart', 'Favoris', nbFav ? pluriel(nbFav, 'recette') : 'Aucun pour l\'instant')}
+      ${tuile('#/frigo', 'frigo', 'Avec ce que j\'ai', 'Selon mon frigo', 'tuile-frigo')}
+      ${store.estConfigure() ? tuile('#/ajouter', 'plus', 'Ajouter', 'Par lien ou à la main', 'tuile-ajouter') : ''}
+    </nav>`;
+  };
+
+  root.querySelector('input').addEventListener('input', e => { q = e.target.value; afficher(); });
+  afficher();
+  return C.surChangement(() => { if (!q.trim()) afficher(); });
+}
+
+// Recettes : toutes les recettes, en grille (catégories, tri) ou en liste alphabétique.
+export function listeRecettes(root) {
+  const etat = JSON.parse(sessionStorage.getItem('mr.filtre') || '{"q":"","cat":"Tout"}');
+  let tri = 'alpha';
+  let vue = 'grille';
+  try { tri = localStorage.getItem('mr.tri') || 'alpha'; vue = localStorage.getItem('mr.vue') || 'grille'; } catch { /* stockage indisponible */ }
+  const toutes = store.recettes();
+  const cats = ['Tout', ...CATEGORIES.filter(c => toutes.some(r => r.meta.categorie === c)),
+    ...[...new Set(toutes.map(r => r.meta.categorie))].filter(c => !CATEGORIES.includes(c))];
+  if (!cats.includes(etat.cat)) etat.cat = 'Tout';
+
+  root.className = 'page';
+  root.innerHTML = `
+    <div class="entete"><h1 class="titre-page">Recettes</h1>
+      <div class="boutons-entete">
+        <button class="btn-rond" id="vue" aria-pressed="${vue === 'liste'}" aria-label="Affichage en liste">${icon('liste')}</button>
+        <button class="btn-rond" id="sync" aria-label="Synchroniser">${icon('refresh')}</button>
+      </div></div>
+    <label class="recherche">${icon('search')}<span class="sr">Rechercher</span>
+      <input type="search" placeholder="Rechercher parmi ${pluriel(toutes.length, 'recette')}" value="${esc(etat.q)}" enterkeyhint="search"></label>
     <div class="puces" role="group" aria-label="Catégories">${cats.map(c =>
       `<button class="puce" aria-pressed="${c === etat.cat}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>
     <div id="bannieres">${bannieres()}</div>
@@ -104,13 +170,21 @@ export function accueil(root) {
     sessionStorage.setItem('mr.filtre', JSON.stringify(etat));
     if (!store.estConfigure() && !toutes.length) { resultats.innerHTML = nonConfigure(); return; }
     const liste = toutes.filter(r => (etat.cat === 'Tout' || r.meta.categorie === etat.cat) && correspond(r, etat.q));
-    trier(liste, tri);
-    const titre = !etat.q && etat.cat === 'Tout' ? `Mes recettes <span class="aide">${liste.length}</span>`
+    trier(liste, vue === 'liste' ? 'alpha' : tri);
+    const titre = !etat.q && etat.cat === 'Tout' ? pluriel(liste.length, 'recette')
       : `${liste.length} résultat${liste.length > 1 ? 's' : ''}`;
     let html = `<div class="section-tete"><h2>${titre}</h2>
-      <label class="tri">${icon('tri')}<span class="sr">Trier</span>
-        <select id="tri">${TRIS.map(([v, lib]) => `<option value="${v}" ${v === tri ? 'selected' : ''}>${lib}</option>`).join('')}</select></label></div>`;
-    if (liste.length) html += `<div class="grille">${liste.map(carteRecette).join('')}</div>`;
+      ${vue === 'grille' ? `<label class="tri">${icon('tri')}<span class="sr">Trier</span>
+        <select id="tri">${TRIS.map(([v, lib]) => `<option value="${v}" ${v === tri ? 'selected' : ''}>${lib}</option>`).join('')}</select></label>` : ''}</div>`;
+    if (liste.length && vue === 'liste') {
+      let lettre = '';
+      html += `<div class="liste">${liste.map(r => {
+        const l = sansAccents(r.meta.titre[0] || '#').toUpperCase();
+        const tete = l !== lettre ? `<div class="lettre">${esc(l)}</div>` : '';
+        lettre = l;
+        return tete + ligneRecette(r);
+      }).join('')}</div>`;
+    } else if (liste.length) html += `<div class="grille">${liste.map(carteRecette).join('')}</div>`;
     else if (!toutes.length) html += `<div class="vide"><div class="serif">Aucune recette pour l'instant</div><p>Synchronisation en cours, ou ajoutez votre première recette.</p></div>`;
     else html += `<div class="vide"><p>Rien ne correspond à « ${esc(etat.q)} ».</p></div>`;
     resultats.innerHTML = html;
@@ -129,33 +203,12 @@ export function accueil(root) {
     root.querySelectorAll('.puce').forEach(x => x.setAttribute('aria-pressed', x === b));
     afficher();
   }));
-  afficher();
-}
-
-export function listeRecettes(root) {
-  const toutes = store.recettes();
-  let q = '';
-  root.className = 'page';
-  root.innerHTML = `
-    <div class="entete"><h1 class="titre-page">Recettes</h1>
-      <button class="btn-rond" id="sync" aria-label="Synchroniser">${icon('refresh')}</button></div>
-    <label class="recherche">${icon('search')}<span class="sr">Rechercher</span>
-      <input type="search" placeholder="Rechercher parmi ${toutes.length} recette${toutes.length > 1 ? 's' : ''}" enterkeyhint="search"></label>
-    <div id="liste" class="liste"></div>
-    ${store.estConfigure() ? fab() : ''}`;
-  const zone = root.querySelector('#liste');
-  const afficher = () => {
-    const liste = toutes.filter(r => correspond(r, q));
-    let lettre = '';
-    zone.innerHTML = liste.map(r => {
-      const l = sansAccents(r.meta.titre[0] || '#').toUpperCase();
-      const tete = l !== lettre ? `<div class="lettre">${esc(l)}</div>` : '';
-      lettre = l;
-      return tete + ligneRecette(r);
-    }).join('') || (store.estConfigure() ? `<div class="vide"><p>Aucune recette.</p></div>` : nonConfigure());
-    chargerPhotos(zone, store.recette);
-  };
-  root.querySelector('input').addEventListener('input', e => { q = e.target.value; afficher(); });
+  root.querySelector('#vue').addEventListener('click', e => {
+    vue = vue === 'liste' ? 'grille' : 'liste';
+    e.currentTarget.setAttribute('aria-pressed', vue === 'liste');
+    try { localStorage.setItem('mr.vue', vue); } catch { /* stockage indisponible */ }
+    afficher();
+  });
   root.querySelector('#sync').addEventListener('click', async e => {
     const b = e.currentTarget;
     b.disabled = true; b.innerHTML = '<span class="spinner"></span>';

@@ -119,13 +119,30 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 }
 .recherche input { flex: 1; border: 0; outline: 0; background: none; color: var(--encre); font-size: 16px; min-width: 0; }
 .recherche input::placeholder { color: var(--gris); }
-/* « Avec ce que j'ai » */
-.raccourci-frigo { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 12px 14px; border-radius: 16px; background: var(--pastel); color: var(--brun); text-decoration: none; }
-.raccourci-frigo > svg.i:first-child { width: 26px; height: 26px; flex: none; }
-.raccourci-frigo span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.raccourci-frigo b { font-weight: 600; color: var(--encre); }
-.raccourci-frigo small { font-size: 13px; }
-.raccourci-frigo > svg.i:last-child { width: 18px; height: 18px; flex: none; }
+/* ---------- accueil : raccourcis ---------- */
+.tuiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tuile {
+  min-height: 132px; padding: 16px; border-radius: 22px; background: var(--carte); border: 1px solid var(--bordure);
+  color: var(--encre); text-decoration: none; display: flex; flex-direction: column; justify-content: space-between; gap: 12px;
+}
+.tuile-icone { width: 44px; height: 44px; border-radius: 14px; background: var(--doux); color: var(--accent-texte); display: grid; place-items: center; }
+.tuile-icone svg.i { width: 23px; height: 23px; }
+.tuile-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tuile-txt b { font-size: 17px; font-weight: 600; }
+.tuile-txt small { font-size: 13px; color: var(--gris); }
+.tuile-recettes {
+  grid-column: 1 / -1; min-height: 140px; flex-direction: row; align-items: flex-end; position: relative; overflow: hidden;
+  background: var(--accent); border: 0; color: #fff;
+}
+.tuile-recettes::before { content: ""; position: absolute; width: 190px; aspect-ratio: 1; border-radius: 50%; right: -30px; top: -70px; background: rgba(255, 255, 255, .14); }
+.tuile-recettes .tuile-txt { flex: 1; position: relative; }
+.tuile-recettes b { font-family: var(--serif); font-size: 26px; }
+.tuile-recettes small { color: #fff; font-size: 14px; font-weight: 500; }
+.tuile-recettes > svg.i { position: relative; width: 44px; height: 44px; padding: 11px; box-sizing: border-box; border-radius: 50%; background: var(--carte); color: var(--accent-texte); flex: none; }
+.tuile-ajouter b { color: var(--accent-texte); }
+#bannieres:not(:empty) { margin-bottom: 14px; }
+.boutons-entete { display: flex; gap: 8px; }
+.boutons-entete .btn-rond[aria-pressed="true"] { background: var(--encre); border-color: var(--encre); color: var(--carte); }
 .puces-frigo { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 16px; }
 .puces-frigo:empty { display: none; }
 .puces-frigo span { padding: 6px 12px; border-radius: 999px; background: var(--doux); color: var(--brun); font-size: 14px; font-weight: 500; }
