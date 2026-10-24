@@ -94,7 +94,10 @@ async function nouvellePage({ configure = true, horloge = false, avant = null, s
   if (configure) {
     await page.evaluate(([jeton, depot]) => localStorage.setItem('mr.reglages', JSON.stringify({ prenom: 'Test', jeton, depot })), [JETON, DEPOT]);
     await page.reload();
-    await page.locator('.carte').first().waitFor();
+    await page.locator('.tuile-recettes', { hasText: /\d recettes?/ }).waitFor();
+    // La plupart des parcours partent de la liste des recettes.
+    await page.goto(BASE + '#/recettes');
+    await page.locator('.ligne-recette').first().waitFor();
   }
 }
 
@@ -156,15 +159,48 @@ test('réglages : le jeton est envoyé et la connexion réussit', async () => {
   await ctx.close();
 });
 
-test('accueil : liste, recherche et filtres', async () => {
+test('accueil : raccourcis (recettes, courses, favoris, frigo, ajouter) et recherche', async () => {
   depotInitial();
   await nouvellePage();
-  assert.equal(await page.locator('#resultats .carte').count(), 3);
+  await page.evaluate(() => localStorage.setItem('mr.favoris', JSON.stringify(['tarte-tatin'])));
+  await page.goto(BASE + '#/');
+  await page.locator('.tuile-recettes').waitFor();
+  const tuiles = await page.locator('.tuile').evaluateAll(ts => ts.map(t => [t.getAttribute('href'), t.querySelector('b').textContent, t.querySelector('small').textContent]));
+  assert.deepEqual(tuiles, [
+    ['#/recettes', 'Mes recettes', '3 recettes'],
+    ['#/courses', 'Courses', 'Liste vide'],
+    ['#/favoris', 'Favoris', '1 recette'],
+    ['#/frigo', 'Avec ce que j\'ai', 'Selon mon frigo'],
+    ['#/ajouter', 'Ajouter', 'Par lien ou à la main'],
+  ]);
+  assert.equal(await page.locator('.carte, .ligne-recette').count(), 0, 'plus de liste de recettes sur l\'accueil');
+  // La recherche affiche ses résultats à la place des raccourcis.
   await page.fill('input[type=search]', 'champignon');
-  assert.equal(await page.locator('#resultats .carte').count(), 1, 'la recherche porte aussi sur les ingrédients');
+  assert.deepEqual(await page.locator('#resultats .ligne-recette h3').allTextContents(), ['Risotto aux champignons']);
+  assert.equal(await page.locator('.tuile').count(), 0);
+  await page.fill('input[type=search]', '');
+  await page.click('.tuile-recettes');
+  await page.waitForURL(/#\/recettes$/);
+  await page.locator('#resultats .ligne-recette').first().waitFor();
+  // Une recette prévue aux courses : le nombre d'articles à acheter apparaît.
+  await page.goto(BASE + '#/recette/tarte-tatin');
+  await page.locator('.fiche-feuille h1').waitFor();
+  await page.goto(BASE + '#/');
+  await page.evaluate(() => import('./js/courses.js').then(C => C.prevoir('tarte-tatin', 6)));
+  await page.locator('.tuile[href="#/courses"] small', { hasText: /\d+ à acheter/ }).waitFor();
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('recettes : grille, recherche et filtres', async () => {
+  depotInitial();
+  await nouvellePage();
+  assert.equal(await page.locator('#resultats .ligne-recette').count(), 3);
+  await page.fill('input[type=search]', 'champignon');
+  assert.equal(await page.locator('#resultats .ligne-recette').count(), 1, 'la recherche porte aussi sur les ingrédients');
   await page.fill('input[type=search]', '');
   await page.click('.puce[data-cat=Desserts]');
-  assert.equal(await page.locator('#resultats .carte').count(), 2);
+  assert.equal(await page.locator('#resultats .ligne-recette').count(), 2);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
@@ -269,10 +305,10 @@ test('hors ligne : l\'app et les recettes restent consultables', async () => {
   await nouvellePage();
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
-  await page.locator('.carte').first().waitFor();
+  await page.locator('.ligne-recette').first().waitFor();
   await ctx.setOffline(true);
   await page.reload();
-  await page.locator('.carte').first().waitFor();
+  await page.locator('.ligne-recette').first().waitFor();
   await page.click('text=Tarte tatin');
   await page.locator('.fiche-feuille h1').waitFor();
   assert.equal(await page.textContent('.fiche-feuille h1'), 'Tarte tatin');
@@ -514,32 +550,34 @@ test('courses : recettes prévues, liste additionnée par rayon, cases et « j\'
 
 /* ---------- autres écrans et cas particuliers ---------- */
 
-const titresAccueil = () => page.locator('#resultats .carte h3').allTextContents();
+const titresRecettes = () => page.locator('#resultats .ligne-recette h3').allTextContents();
 
-test('accueil : tri (A → Z, plus rapides, plus récentes, plus anciennes) retenu, sans « Cuisinées récemment »', async () => {
+test('recettes : tri (A → Z, plus rapides, plus récentes, plus anciennes) retenu, sans « Cuisinées récemment »', async () => {
   depotInitial();
   fichiers.set('recettes/crepes.md', Buffer.from('---\ntitre: Crêpes\ncategorie: Desserts\najoutee: 2026-10-23\n---\n## Ingrédients\n- 250 g farine\n\n## Étapes\n1. Mélanger.\n'));
   fichiers.set('recettes/salade.md', Buffer.from('---\ntitre: Salade\ncategorie: Entrées\npreparation: 10\najoutee: 2025-01-05\n---\n## Ingrédients\n- 1 salade\n\n## Étapes\n1. Laver.\n'));
   await nouvellePage();
   await page.evaluate(() => localStorage.setItem('mr.historique', JSON.stringify(['tarte-tatin'])));
   await page.reload();
-  await page.locator('#resultats .carte').nth(4).waitFor();
+  await page.locator('#resultats .ligne-recette').nth(4).waitFor();
   assert.equal(await page.locator('text=Cuisinées récemment').count(), 0);
 
-  assert.deepEqual(await titresAccueil(), ['Cinnamon rolls', 'Crêpes', 'Risotto aux champignons', 'Salade', 'Tarte tatin'], 'A → Z par défaut');
+  assert.deepEqual(await titresRecettes(), ['Cinnamon rolls', 'Crêpes', 'Risotto aux champignons', 'Salade', 'Tarte tatin'], 'A → Z par défaut');
+  assert.deepEqual(await page.locator('.lettre').allTextContents(), ['C', 'R', 'S', 'T'], 'lettres en A → Z');
   await page.selectOption('#tri', 'rapide');
-  assert.deepEqual(await titresAccueil(), ['Salade', 'Risotto aux champignons', 'Tarte tatin', 'Cinnamon rolls', 'Crêpes'], 'durée inconnue en dernier');
+  assert.deepEqual(await titresRecettes(), ['Salade', 'Risotto aux champignons', 'Tarte tatin', 'Cinnamon rolls', 'Crêpes'], 'durée inconnue en dernier');
+  assert.equal(await page.locator('.lettre').count(), 0, 'pas de lettres dans les autres tris');
   await page.selectOption('#tri', 'recente');
-  assert.deepEqual(await titresAccueil(), ['Crêpes', 'Cinnamon rolls', 'Risotto aux champignons', 'Tarte tatin', 'Salade']);
+  assert.deepEqual(await titresRecettes(), ['Crêpes', 'Cinnamon rolls', 'Risotto aux champignons', 'Tarte tatin', 'Salade']);
   await page.selectOption('#tri', 'ancienne');
-  assert.deepEqual(await titresAccueil(), ['Salade', 'Cinnamon rolls', 'Risotto aux champignons', 'Tarte tatin', 'Crêpes']);
+  assert.deepEqual(await titresRecettes(), ['Salade', 'Cinnamon rolls', 'Risotto aux champignons', 'Tarte tatin', 'Crêpes']);
 
   // Le choix est retenu, et se combine avec les filtres.
   await page.reload();
-  await page.locator('#resultats .carte').nth(4).waitFor();
+  await page.locator('#resultats .ligne-recette').nth(4).waitFor();
   assert.equal(await page.inputValue('#tri'), 'ancienne');
   await page.click('.puce[data-cat=Desserts]');
-  assert.deepEqual(await titresAccueil(), ['Cinnamon rolls', 'Tarte tatin', 'Crêpes']);
+  assert.deepEqual(await titresRecettes(), ['Cinnamon rolls', 'Tarte tatin', 'Crêpes']);
   await page.fill('input[type=search]', 'zzz');
   assert.match(await page.textContent('#resultats'), /Rien ne correspond à « zzz »/);
   assert.deepEqual(erreurs, []);
@@ -549,7 +587,6 @@ test('accueil : tri (A → Z, plus rapides, plus récentes, plus anciennes) rete
 test('onglets Recettes et Favoris', async () => {
   depotInitial();
   await nouvellePage();
-  await page.click('.tabbar a[href="#/recettes"]');
   await page.locator('.lettre').nth(2).waitFor();
   assert.deepEqual(await page.locator('.lettre').allTextContents(), ['C', 'R', 'T']);
   await page.fill('input[type=search]', 'pommes');
@@ -708,14 +745,14 @@ test('mode cuisine : recommencer, messages au pluriel, retour après « Terminé
   for (let k = 0; k < 4; k++) await page.click('#suiv');
   assert.equal(question, '2 minuteurs sont encore en cours. Terminer la recette et les arrêter ?');
 
-  // Après « Terminé » on est sur la fiche ; « retour » mène à l'accueil, pas au mode cuisine.
+  // Après « Terminé » on est sur la fiche ; « retour » mène à l'écran d'avant (Recettes), pas au mode cuisine.
   await page.waitForURL(/#\/recette\/tarte-tatin$/);
   await page.locator('.fiche-feuille').waitFor();
   await page.goBack();
   await page.waitForTimeout(300);
-  assert.match(page.url(), /\/(#\/)?$/);
+  assert.match(page.url(), /#\/recettes$/);
   assert.equal(await page.locator('.cuisine-corps').count(), 0);
-  assert.ok(await page.locator('.grand-titre').isVisible());
+  assert.ok(await page.locator('.ligne-recette').first().isVisible());
 
   // Mode cuisine ouvert directement (notification, app fermée) : « Terminé » mène à la fiche,
   // et « retour » depuis la fiche à l'accueil, jamais de nouveau au mode cuisine.
@@ -822,8 +859,9 @@ test('modifier puis supprimer une recette', async () => {
   await page.click('#suppr');
   await page.waitForURL(/#\/$/);
   assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === 'recettes/risotto-aux-champignons.md'));
-  await page.locator('#resultats .carte').first().waitFor();
-  assert.ok(!(await titresAccueil()).includes('Risotto aux champignons'));
+  await page.goto(BASE + '#/recettes');
+  await page.locator('#resultats .ligne-recette').first().waitFor();
+  assert.ok(!(await titresRecettes()).includes('Risotto aux champignons'));
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
@@ -844,7 +882,7 @@ test('import par lien : résultat réussi, puis échec avec formulaire pré-remp
   await page.clock.fastForward(9000);
   await page.locator('.toast.visible').waitFor();
   assert.match(await page.textContent('.toast'), /« Gaufres » importée/);
-  await page.locator('.carte h3', { hasText: 'Gaufres' }).waitFor();
+  await page.locator('.ligne-recette h3', { hasText: 'Gaufres' }).waitFor();
   assert.ok(!fichiers.has('import/resultats/a1.json'), 'résultat nettoyé');
 
   await attendre('a2', { statut: 'erreur', message: 'Pas de recette trouvée sur cette page.' });
@@ -1259,6 +1297,7 @@ test('mode cuisine : ingrédients cochés, minuteur arrêté (sans clignoter), r
 
 test('écrans : toujours ouverts en haut, la position n\'est retrouvée qu\'au retour arrière ; plus de niveau', async () => {
   depotInitial();
+  for (const n of [1, 2, 3, 4]) fichiers.set(`recettes/soupe-${n}.md`, Buffer.from(`---\ntitre: Soupe ${n}\ncategorie: Entrées\n---\n## Ingrédients\n- 1 poireau\n\n## Étapes\n1. Cuire.\n`));
   await nouvellePage();
   await page.evaluate(() => window.scrollTo(0, 400));
   const y = await page.evaluate(() => window.scrollY);
@@ -1330,7 +1369,7 @@ test('import annulé : la demande est retirée ; annulé trop tard, la recette c
   assert.equal(await page.locator('.banniere').count(), 0);
   assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === demande), 'demande retirée');
   await page.reload();
-  await page.locator('.carte').first().waitFor();
+  await page.locator('.tuile-recettes, .ligne-recette').first().waitFor();
   assert.equal(await page.locator('.banniere').count(), 0, 'toujours annulé après rechargement');
 
   // Annulé alors que GitHub l'avait déjà traité : la recette arrivée ensuite est supprimée, sans message.
@@ -1349,7 +1388,7 @@ test('import annulé : la demande est retirée ; annulé trop tard, la recette c
   assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === 'recettes/gaufres.md'), 'recette importée retirée');
   assert.ok(!fichiers.has(`import/resultats/${id}.json`), 'résultat nettoyé');
   assert.doesNotMatch(await page.textContent('body'), /« Gaufres » importée/);
-  assert.equal(await page.locator('.carte h3', { hasText: 'Gaufres' }).count(), 0);
+  assert.equal(await page.locator('.ligne-recette h3', { hasText: 'Gaufres' }).count(), 0);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
@@ -1371,8 +1410,9 @@ test('supprimer une recette depuis « Modifier »', async () => {
   await page.click('#suppr-recette');
   await page.waitForURL(/#\/$/);
   assert.ok(ecritures.some(w => w.methode === 'DELETE' && w.chemin === 'recettes/tarte-tatin.md'));
-  await page.locator('.carte').first().waitFor();
-  assert.ok(!(await titresAccueil()).includes('Tarte tatin'));
+  await page.goto(BASE + '#/recettes');
+  await page.locator('.ligne-recette').first().waitFor();
+  assert.ok(!(await titresRecettes()).includes('Tarte tatin'));
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
@@ -1427,7 +1467,7 @@ for (const sombre of [true, false]) test(`mode ${sombre ? 'sombre' : 'clair'} : 
   await nouvellePage({ sombre });
   const couleurs = sel => page.evaluate(s => { const c = getComputedStyle(document.querySelector(s)); return { fond: c.backgroundColor, texte: c.color }; }, sel);
   assert.equal((await couleurs('body')).fond, sombre ? 'rgb(28, 23, 18)' : 'rgb(246, 240, 230)');
-  assert.equal((await couleurs('.carte')).fond, sombre ? 'rgb(39, 32, 26)' : 'rgb(255, 251, 244)');
+  assert.equal((await couleurs('.ligne-recette')).fond, sombre ? 'rgb(39, 32, 26)' : 'rgb(255, 251, 244)');
   assert.equal(await page.getAttribute('meta[name=theme-color]', 'content'), sombre ? '#1C1712' : '#F6F0E6', 'barre du téléphone');
   // Pastille avec un lien (« Bon appétit ! · Noter dans le carnet ») : le lien se lit sur le fond de la pastille.
   const contrastePastille = await page.evaluate(async () => {
@@ -1600,7 +1640,7 @@ test('carnet : ajouter une note (avis, moule, four), la retrouver, la supprimer 
   await page.evaluate(() => { localStorage.removeItem('mr.recettes'); });
   await page.goto(BASE + '#/');
   await page.reload();
-  await page.locator('.carte').first().waitFor();
+  await page.locator('.tuile-recettes', { hasText: /\d recettes?/ }).waitFor();
   await page.goto(BASE + '#/recette/cinnamon-rolls');
   await page.locator('.fiche-feuille h1').waitFor();
   await page.click('[role=tab][data-o=notes]');
@@ -1744,7 +1784,8 @@ test('mode cuisine mains libres : désactivé par défaut, commandes après « R
 test('avec ce que j\'ai : depuis l\'accueil, recettes classées par ce qui manque, placard modifiable', async () => {
   depotInitial();
   await nouvellePage();
-  await page.click('.raccourci-frigo');
+  await page.goto(BASE + '#/');
+  await page.click('.tuile-frigo');
   await page.waitForURL(/#\/frigo$/);
   assert.match(await page.textContent('#resultats-frigo'), /Écris ce que tu as/);
   await page.fill('#mes', 'pommes, beurre, sucre et farine');
@@ -1776,7 +1817,7 @@ test('avec ce que j\'ai : depuis l\'accueil, recettes classées par ce qui manqu
   await page.locator('#mes').waitFor();
   assert.equal(await page.inputValue('#mes'), 'riz');
   await page.click('#retour');
-  await page.locator('.raccourci-frigo').waitFor();
+  await page.locator('.tuile-frigo').waitFor();
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
