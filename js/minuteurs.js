@@ -250,20 +250,23 @@ async function notifier(m) {
 }
 
 /**
- * Remet les notifications affichées en accord avec les minuteurs réels, et ferme celles qui n'ont plus
- * lieu d'être (minuteur effacé, ou terminé et arrêté). Ne recrée jamais une notification qu'on a balayée :
- * elle revenait à chaque ouverture de l'app.
+ * Remet les notifications en accord avec les minuteurs réels, et ferme celles qui n'ont plus lieu d'être
+ * (minuteur effacé, ou terminé et arrêté). Un minuteur qui tourne retrouve toujours sa notification ;
+ * celle d'un minuteur en pause ou terminé, une fois balayée, ne revient pas à chaque ouverture de l'app.
  */
 export async function resynchroniser() {
   if (!notificationsPossibles() || Notification.permission !== 'granted') return;
   const reg = await navigator.serviceWorker.ready.catch(() => null);
   if (!reg) return;
+  const affichees = new Set();
   for (const n of await reg.getNotifications().catch(() => [])) {
     if (!n.tag || !n.tag.includes('|')) continue;
     const m = tous[n.tag];
     if (!m || (m.fini && !m.sonne)) n.close();
-    else if (!m.fini) notifier(m); // texte remis à jour (pause, +1 min touché app fermée…) ; une sonnerie reste telle quelle
+    else affichees.add(n.tag);
   }
+  // Une sonnerie affichée reste telle quelle ; sinon, texte remis à jour (pause, +1 min touché app fermée…).
+  for (const m of Object.values(tous)) if (enCours(m) || (affichees.has(m.id) && !m.fini)) notifier(m);
 }
 resynchroniser();
 
