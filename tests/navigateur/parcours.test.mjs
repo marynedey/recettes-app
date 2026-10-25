@@ -1971,3 +1971,24 @@ test('quantités : pas de fausse alerte pour « (T45) », « (11 g) » ; équiva
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
+
+test('accueil : tient pile dans l\'écran, sans défiler (petit, moyen et grand téléphone)', async () => {
+  depotInitial();
+  await nouvellePage();
+  for (const [largeur, hauteur] of [[360, 640], [360, 780], [393, 851], [412, 839], [412, 915]]) {
+    await page.setViewportSize({ width: largeur, height: hauteur });
+    await page.goto(BASE + '#/recettes');
+    await page.goto(BASE + '#/');
+    await page.locator('.tuiles').waitFor();
+    await page.waitForTimeout(200);
+    const m = await page.evaluate(() => ({
+      defile: document.documentElement.scrollHeight - innerHeight,
+      basTuiles: Math.max(...[...document.querySelectorAll('.tuile')].map(t => t.getBoundingClientRect().bottom)),
+      hautBarre: document.querySelector('.tabbar').getBoundingClientRect().top,
+    }));
+    assert.ok(m.defile <= 0, `${largeur}×${hauteur} : la page défile de ${m.defile} px`);
+    assert.ok(m.basTuiles <= m.hautBarre && m.hautBarre - m.basTuiles < 40, `${largeur}×${hauteur} : tuiles jusqu'en bas (${JSON.stringify(m)})`);
+  }
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
