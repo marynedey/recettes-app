@@ -484,6 +484,15 @@ test('minuteurs : plusieurs à la fois, bandeau, notifications fidèles, fin de 
   await page.locator('#t-bloc').waitFor();
   assert.match(await page.textContent('#t-bloc'), /^17:5\d$/);
 
+  // Notification balayée : elle ne revient pas à la réouverture de l'app (le minuteur continue).
+  await page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications({ tag: 'tarte-tatin|0|0' })).forEach(n => n.close()));
+  await page.reload();
+  await page.locator('#t-bloc').waitFor();
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(300);
+  assert.equal((await notifications()).filter(n => n.tag === 'tarte-tatin|0|0').length, 0, 'notification balayée non recréée');
+  assert.match(await page.textContent('#t-bloc'), /^17:5\d$/);
+
   // Terminer la recette avec un minuteur en cours : confirmation, puis tout est effacé.
   let question = '';
   page.once('dialog', d => { question = d.message(); d.dismiss(); });

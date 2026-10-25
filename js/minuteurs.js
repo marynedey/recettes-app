@@ -213,7 +213,7 @@ export const notificationsPossibles = () => 'Notification' in window && 'service
 export async function demanderNotifications() {
   if (!notificationsPossibles() || Notification.permission !== 'default') return;
   try { await Notification.requestPermission(); } catch { /* refusé */ }
-  Object.values(tous).forEach(notifier);
+  Object.values(tous).filter(m => !m.fini || m.sonne).forEach(notifier);
 }
 
 // Heures, minutes et secondes, comme sur le minuteur de l'app.
@@ -249,15 +249,21 @@ async function notifier(m) {
   } catch { /* notifications indisponibles */ }
 }
 
-/** Remet les notifications en accord avec les minuteurs réels (et ferme celles qui n'ont plus lieu d'être). */
+/**
+ * Remet les notifications affichées en accord avec les minuteurs réels, et ferme celles qui n'ont plus
+ * lieu d'être (minuteur effacé, ou terminé et arrêté). Ne recrée jamais une notification qu'on a balayée :
+ * elle revenait à chaque ouverture de l'app.
+ */
 export async function resynchroniser() {
   if (!notificationsPossibles() || Notification.permission !== 'granted') return;
   const reg = await navigator.serviceWorker.ready.catch(() => null);
   if (!reg) return;
   for (const n of await reg.getNotifications().catch(() => [])) {
-    if (n.tag && n.tag.includes('|') && !tous[n.tag]) n.close();
+    if (!n.tag || !n.tag.includes('|')) continue;
+    const m = tous[n.tag];
+    if (!m || (m.fini && !m.sonne)) n.close();
+    else if (!m.fini) notifier(m); // texte remis à jour (pause, +1 min touché app fermée…) ; une sonnerie reste telle quelle
   }
-  Object.values(tous).forEach(notifier);
 }
 resynchroniser();
 
