@@ -3,6 +3,7 @@
 import { esc, icon, toast } from './ui.js';
 import * as M from './minuteurs.js';
 import * as C from './courses.js';
+import * as EC from './encours.js';
 import * as store from './store.js';
 import { accueil, listeRecettes, favorisVue } from './views/listes.js';
 import { courses } from './views/courses.js';
@@ -84,6 +85,7 @@ function rendre() {
     const dejaVue = !!history.state?.mr;
     window.scrollTo(0, dejaVue ? positions.get(location.hash) || 0 : 0);
     if (!dejaVue) history.replaceState({ ...history.state, mr: 1 }, '');
+    EC.majPoint();
     return;
   }
   location.replace('#/');

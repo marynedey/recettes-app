@@ -1511,9 +1511,13 @@ for (const sombre of [true, false]) test(`mode ${sombre ? 'sombre' : 'clair'} : 
   });
   assert.ok(contrastePastille >= 4.5, `lien de la pastille : contraste ${contrastePastille.toFixed(1)}`);
   // Contraste du texte sur son fond, sur chaque écran (≥ 4,5:1, 3:1 pour les gros titres).
-  const ecrans = ['#/', '#/recette/tarte-tatin', '#/courses', '#/reglages', '#/cuisine/tarte-tatin', '#/modifier/tarte-tatin'];
+  const ecrans = ['#/', '#/recette/tarte-tatin', '#/courses', '#/reglages', '#/cuisine/tarte-tatin', '#/modifier/tarte-tatin', 'recette pas terminée'];
   for (const ecran of ecrans) {
-    await page.goto(BASE + ecran);
+    if (ecran === 'recette pas terminée') {
+      await page.evaluate(() => localStorage.setItem('mr.encours', JSON.stringify({ 'tarte-tatin': { slug: 'tarte-tatin', etape: 2, debut: Date.now(), maj: Date.now() } })));
+      await page.goto(BASE + '#/favoris');
+      await page.click('#point-encours');
+    } else await page.goto(BASE + ecran);
     await page.waitForTimeout(400);
     await page.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; })); // réglages dépliés
     const faibles = await page.evaluate(() => {
@@ -2050,6 +2054,88 @@ test('accueil : tient pile dans l\'écran, sans défiler (petit, moyen et grand 
     return { h: t.getBoundingClientRect().height, min: contenu + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth) };
   });
   assert.ok(Math.abs(r.h - r.min) <= 1, `« Mes recettes » réduite à son texte (${JSON.stringify(r)})`);
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
+
+test('recette pas terminée : un point sur chaque écran, « Reprendre » ou « Terminer »', async () => {
+  depotInitial();
+  await nouvellePage({ horloge: true });
+  const point = page.locator('#point-encours');
+  await page.click('text=Tarte tatin');
+  await page.click('#cuisiner');
+  await page.click('#fermer');
+  await page.locator('.fiche-feuille').waitFor();
+  assert.equal(await point.count(), 0, 'ouvrir le mode cuisine et le quitter aussitôt ne compte pas');
+
+  // Commencée (étape 3, minuteur de l'étape 1 en pause) puis quittée sans « Terminé ».
+  await page.click('#cuisiner');
+  await page.click('#m-lecture');
+  await page.click('#m-lecture');
+  await page.click('#suiv');
+  await page.click('#suiv');
+  assert.match(await etape(), /Étape 3/);
+  assert.equal(await point.count(), 0, 'pas de point dans le mode cuisine');
+  await page.click('#fermer');
+  await page.locator('.fiche-feuille').waitFor();
+  await point.waitFor();
+
+  // Partout, même après avoir rouvert l'app.
+  await page.reload();
+  await point.waitFor();
+  await page.goto(BASE + '#/');
+  await point.waitFor();
+  await page.click('.tabbar a[href="#/courses"]');
+  await point.waitFor();
+  const boite = await point.boundingBox();
+  assert.ok(Math.abs(boite.x + boite.width / 2 - page.viewportSize().width / 2) < 2, 'centré en haut');
+
+  // La question : la recette, l'étape, le minuteur en pause ; « Plus tard » la ferme, le point reste.
+  await point.click();
+  const feuille = page.locator('[role=dialog][aria-label="Recette pas terminée"]');
+  assert.match(await feuille.textContent(), /Tarte tatin.*Étape 3 sur 9 · commencée aujourd'hui à \d\d:\d\d/s);
+  assert.match(await feuille.textContent(), /Minuteur .* · en pause, reste 30:00/);
+  await page.click('text=Plus tard');
+  assert.equal(await feuille.count(), 0);
+  assert.equal(await point.count(), 1);
+  // Le retour Android ferme la feuille sans quitter l'écran.
+  await point.click();
+  await page.goBack();
+  assert.equal(await feuille.count(), 0);
+  assert.match(page.url(), /#\/courses$/);
+
+  // « Reprendre » : le mode cuisine rouvre à l'étape 3.
+  await point.click();
+  await page.click('text=Reprendre à l\'étape 3');
+  await page.waitForURL(/#\/cuisine\/tarte-tatin/);
+  assert.match(await etape(), /Étape 3/);
+  assert.equal(await point.count(), 0);
+  await page.click('#fermer');
+  await point.waitFor();
+
+  // « Terminer » : minuteurs effacés, plus de point, « Bon appétit ! » avec le carnet.
+  await point.click();
+  await page.click('text=Terminer la recette');
+  await page.waitForTimeout(200);
+  assert.equal(await point.count(), 0);
+  assert.equal(await page.evaluate(() => localStorage.getItem('mr.minuteurs')), '{}');
+  assert.match(await page.textContent('.toast'), /Bon appétit/);
+  await page.reload();
+  await page.waitForTimeout(300);
+  assert.equal(await point.count(), 0);
+
+  // Aller jusqu'à « Terminé » dans le mode cuisine retire aussi le point.
+  await page.goto(BASE + '#/recette/tarte-tatin');
+  await page.click('#cuisiner');
+  await page.click('#suiv');
+  await page.click('#fermer');
+  await point.waitFor();
+  await page.click('#cuisiner');
+  page.on('dialog', d => d.accept());
+  for (let k = 0; k < 8; k++) await page.click('#suiv');
+  await page.waitForURL(u => !/#\/cuisine\//.test(u));
+  await page.waitForTimeout(300);
+  assert.equal(await point.count(), 0);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });

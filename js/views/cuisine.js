@@ -5,6 +5,7 @@ import { flatSteps, ingredientsForStep, formatQty, nomIngredient, detectTimers }
 import { esc, icon, texteEtape, toast } from '../ui.js';
 import { ecouter, reconnaissancePossible } from '../voix.js';
 import * as M from '../minuteurs.js';
+import * as EC from '../encours.js';
 
 const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 const fmtLong = s => s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : fmt(s);
@@ -32,6 +33,8 @@ export function cuisine(root, { params, query }) {
   // « f » : facteur du moule choisi sur la fiche (sinon, d'après le nombre de personnes).
   const facteur = Number(query.get('f')) || (base ? portions / base : 1);
   const cle = 'mr.cuisine.' + r.slug;
+  // Adresse à rouvrir avec « Reprendre » (portions, moule), sans « ?e= ».
+  const adresseCuisine = location.hash.replace(/([?&])e=\d+&?/, '$1').replace(/[?&]$/, '');
   const etapeDemandee = query.has('e') ? Number(query.get('e')) : null;
   let i = Math.min(etapeDemandee ?? (Number(sessionStorage.getItem(cle)) || 0), steps.length - 1);
   store.marquerCuisinee(r.slug);
@@ -87,6 +90,8 @@ export function cuisine(root, { params, query }) {
 
   function rendreEtape() {
     sessionStorage.setItem(cle, i);
+    // Recette commencée (étape 2 atteinte ou minuteur lancé) : le point « pas terminée » la retiendra.
+    if (i > 0 || M.deRecette(r.slug).length || EC.existe(r.slug)) EC.noter(r.slug, i, adresseCuisine);
     const s = steps[i];
     const ings = ingredientsForStep(r, s);
     const timers = detectTimers(s.texte);
@@ -278,8 +283,7 @@ export function cuisine(root, { params, query }) {
     if (i + d >= steps.length) {
       const restants = M.deRecette(r.slug).filter(m => !m.fini).length;
       if (restants && !confirm(`${restants > 1 ? `${restants} minuteurs sont` : 'Un minuteur est'} encore en cours. Terminer la recette et ${restants > 1 ? 'les ' : 'l\''}arrêter ?`)) return;
-      M.arreterRecette(r.slug); // minuteurs et notifications de la recette effacés
-      sessionStorage.removeItem(cle);
+      EC.terminer(r.slug); // minuteurs et notifications de la recette effacés, plus de point « pas terminée »
       // Depuis la fiche, « retour » mènera à l'accueil et non à nouveau au mode cuisine (cf. app.js).
       sessionStorage.setItem('mr.apresCuisine', `#/recette/${encodeURIComponent(r.slug)}`);
       quitter();
