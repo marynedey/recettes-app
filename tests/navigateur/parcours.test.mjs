@@ -484,13 +484,25 @@ test('minuteurs : plusieurs à la fois, bandeau, notifications fidèles, fin de 
   await page.locator('#t-bloc').waitFor();
   assert.match(await page.textContent('#t-bloc'), /^17:5\d$/);
 
-  // Notification balayée : elle ne revient pas à la réouverture de l'app (le minuteur continue).
-  await page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications({ tag: 'tarte-tatin|0|0' })).forEach(n => n.close()));
-  await page.reload();
-  await page.locator('#t-bloc').waitFor();
-  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-  await page.waitForTimeout(300);
-  assert.equal((await notifications()).filter(n => n.tag === 'tarte-tatin|0|0').length, 0, 'notification balayée non recréée');
+  // Notification balayée d'un minuteur qui tourne : elle revient à la réouverture de l'app…
+  const balayer = () => page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications({ tag: 'tarte-tatin|0|0' })).forEach(n => n.close()));
+  const rouvrir = async () => {
+    await page.reload();
+    await page.locator('#t-bloc').waitFor();
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await page.waitForTimeout(300);
+  };
+  const n0 = async () => (await notifications()).filter(n => n.tag === 'tarte-tatin|0|0');
+  await balayer();
+  await rouvrir();
+  assert.match((await n0())[0]?.titre || '', /étape 1 · prêt à/, 'minuteur en cours : notification remise');
+  // … mais pas celle d'un minuteur en pause.
+  await page.click('#m-lecture');
+  await page.waitForTimeout(200);
+  assert.match((await n0())[0]?.titre || '', /en pause/);
+  await balayer();
+  await rouvrir();
+  assert.equal((await n0()).length, 0, 'minuteur en pause : notification balayée non recréée');
   assert.match(await page.textContent('#t-bloc'), /^17:5\d$/);
 
   // Terminer la recette avec un minuteur en cours : confirmation, puis tout est effacé.
