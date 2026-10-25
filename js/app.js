@@ -13,6 +13,12 @@ import { reglagesVue } from './views/reglages.js';
 import { frigo } from './views/frigo.js';
 
 const app = document.getElementById('app');
+
+// Hauteur vraiment visible (sur certains téléphones, dans l'app installée, « 100dvh » compte aussi les
+// barres du système) : l'accueil se cale dessus pour tenir pile dans l'écran.
+const noterHauteur = () => document.documentElement.style.setProperty('--ecran', `${window.innerHeight}px`);
+noterHauteur();
+window.addEventListener('resize', noterHauteur);
 let nettoyage = null;
 
 const ROUTES = [
@@ -84,7 +90,9 @@ function rendre() {
 }
 
 window.addEventListener('hashchange', rendre);
-window.addEventListener('scroll', () => positions.set(location.hash, window.scrollY), { passive: true });
+// Notée pour l'écran affiché (dernierRendu) et non pour l'adresse : au retour arrière, l'adresse change avant que
+// l'écran ne soit redessiné, et un « scroll » arrivé entre les deux écrasait la position de l'écran retrouvé.
+window.addEventListener('scroll', () => positions.set(dernierRendu, window.scrollY), { passive: true });
 
 window.addEventListener('hashchange', () => sessionStorage.setItem('mr.nav', '1'));
 

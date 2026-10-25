@@ -1087,7 +1087,13 @@ test('fiche : la hauteur suit chaque onglet, la pastille suit le glissement', as
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y }] });
   for (let k = 1; k <= 4; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 300 - 40 * k, y }] });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await page.waitForTimeout(800);
+  // Attendre le repos (aimantation terminée) plutôt qu'un délai fixe : sur une machine lente, 800 ms ne suffisaient pas.
+  await page.waitForFunction(() => {
+    const p = document.querySelector('#piste');
+    return document.querySelector('[role=tab][aria-selected=true]')?.textContent === 'Notes'
+      && Math.abs(p.scrollLeft - 2 * p.clientWidth) < 2
+      && p.offsetHeight === p.querySelector('[data-o=notes]').offsetHeight;
+  }, null, { timeout: 5000 }).catch(() => {});
   const { gauche, largeur } = await page.evaluate(() => { const p = document.querySelector('#piste'); return { gauche: p.scrollLeft, largeur: p.clientWidth }; });
   assert.equal(await ongletActif(), 'Notes');
   assert.ok(Math.abs(gauche - 2 * largeur) < 2, `calée (${gauche} / ${2 * largeur})`);
@@ -1299,6 +1305,10 @@ test('écrans : toujours ouverts en haut, la position n\'est retrouvée qu\'au r
   depotInitial();
   for (const n of [1, 2, 3, 4]) fichiers.set(`recettes/soupe-${n}.md`, Buffer.from(`---\ntitre: Soupe ${n}\ncategorie: Entrées\n---\n## Ingrédients\n- 1 poireau\n\n## Étapes\n1. Cuire.\n`));
   await nouvellePage();
+  // Sur la liste des recettes, qui défile (l'accueil, lui, tient dans l'écran). On y va en touchant l'onglet,
+  // comme dans l'app : un page.goto vers une simple ancre ne garde pas la marque posée par l'app sur l'historique.
+  await page.click('.tabbar a[href="#/recettes"]');
+  await page.locator('.ligne-recette').first().waitFor();
   await page.evaluate(() => window.scrollTo(0, 400));
   const y = await page.evaluate(() => window.scrollY);
   assert.ok(y > 0);
@@ -2007,6 +2017,18 @@ test('accueil : tient pile dans l\'écran, sans défiler (petit, moyen et grand 
     espaces.push(ecarts[0]);
   }
   assert.ok(espaces.at(-1) > espaces[0] + 10, `l'espace grandit avec l'écran (${espaces.map(Math.round)})`);
+  // La page se cale sur la hauteur vraiment visible (innerHeight), pas sur « 100dvh » (qui, dans l'app
+  // installée, compte parfois les barres du système).
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.accueil')).minHeight), `${await page.evaluate(() => innerHeight)}px`);
+  // Écran très court : « Mes recettes » se réduit jusqu'à la hauteur de son texte, pas en dessous (et la page défile).
+  await page.setViewportSize({ width: 360, height: 520 });
+  await page.waitForTimeout(200);
+  const r = await page.evaluate(() => {
+    const t = document.querySelector('.tuile-recettes'), cs = getComputedStyle(t);
+    const contenu = Math.max(t.querySelector('.tuile-txt').getBoundingClientRect().height, t.querySelector('svg.i:last-child').getBoundingClientRect().height);
+    return { h: t.getBoundingClientRect().height, min: contenu + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth) };
+  });
+  assert.ok(Math.abs(r.h - r.min) <= 1, `« Mes recettes » réduite à son texte (${JSON.stringify(r)})`);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
