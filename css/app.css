@@ -143,11 +143,12 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 /* L'accueil tient pile dans l'écran sans défiler. Les quatre tuiles du bas ont la même hauteur partout
    (126 px, celle d'un petit écran) ; la place en plus va à « Mes recettes » et à l'air du haut : même espace
    (--air, qui grandit avec la hauteur de l'écran) entre « Bonjour », le titre, la recherche et « Mes recettes ». */
-.accueil { --air: clamp(6px, 6vh - 30px, 40px); min-height: 100dvh; display: flex; flex-direction: column; }
+.accueil { --air: clamp(6px, 6vh - 30px, 40px); min-height: var(--ecran, 100dvh); display: flex; flex-direction: column; }
 .accueil .salut { margin: 0 0 var(--air); }
 .accueil .recherche { margin: var(--air) 0; }
 .accueil #resultats { flex: 1 1 0; display: flex; flex-direction: column; }
-.accueil .tuiles { flex: 1 1 0; grid-template-rows: minmax(84px, 1fr); grid-auto-rows: 126px; }
+/* « Mes recettes » : au moins la hauteur de son texte, le reste de la place si l'écran le permet. */
+.accueil .tuiles { flex: 1 1 0; grid-template-rows: minmax(min-content, 1fr); grid-auto-rows: 126px; }
 .accueil .tuile { min-height: 0; }
 .accueil .tuile-recettes { min-height: 0; padding: 14px 16px; align-items: center; }
 .accueil .tuile-recettes::before { width: 150px; top: -60px; }
