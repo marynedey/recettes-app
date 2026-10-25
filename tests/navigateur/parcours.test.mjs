@@ -1087,7 +1087,13 @@ test('fiche : la hauteur suit chaque onglet, la pastille suit le glissement', as
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y }] });
   for (let k = 1; k <= 4; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 300 - 40 * k, y }] });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await page.waitForTimeout(800);
+  // Attendre le repos (aimantation terminée) plutôt qu'un délai fixe : sur une machine lente, 800 ms ne suffisaient pas.
+  await page.waitForFunction(() => {
+    const p = document.querySelector('#piste');
+    return document.querySelector('[role=tab][aria-selected=true]')?.textContent === 'Notes'
+      && Math.abs(p.scrollLeft - 2 * p.clientWidth) < 2
+      && p.offsetHeight === p.querySelector('[data-o=notes]').offsetHeight;
+  }, null, { timeout: 5000 }).catch(() => {});
   const { gauche, largeur } = await page.evaluate(() => { const p = document.querySelector('#piste'); return { gauche: p.scrollLeft, largeur: p.clientWidth }; });
   assert.equal(await ongletActif(), 'Notes');
   assert.ok(Math.abs(gauche - 2 * largeur) < 2, `calée (${gauche} / ${2 * largeur})`);
