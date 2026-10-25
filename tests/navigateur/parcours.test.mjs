@@ -1975,6 +1975,7 @@ test('quantités : pas de fausse alerte pour « (T45) », « (11 g) » ; équiva
 test('accueil : tient pile dans l\'écran, sans défiler (petit, moyen et grand téléphone)', async () => {
   depotInitial();
   await nouvellePage();
+  const espaces = [];
   for (const [largeur, hauteur] of [[360, 640], [360, 780], [393, 851], [412, 839], [412, 915]]) {
     await page.setViewportSize({ width: largeur, height: hauteur });
     await page.goto(BASE + '#/recettes');
@@ -1987,16 +1988,25 @@ test('accueil : tient pile dans l\'écran, sans défiler (petit, moyen et grand 
       hautBarre: document.querySelector('.tabbar').getBoundingClientRect().top,
     }));
     assert.ok(m.defile <= 0, `${largeur}×${hauteur} : la page défile de ${m.defile} px`);
-    assert.ok(m.basTuiles <= m.hautBarre, `${largeur}×${hauteur} : tuiles au-dessus de la barre (${JSON.stringify(m)})`);
-    // « Mes recettes » moins haute que les autres tuiles ; icônes au-dessus du texte.
+    assert.ok(m.basTuiles <= m.hautBarre && m.hautBarre - m.basTuiles < 40, `${largeur}×${hauteur} : tuiles jusqu'en bas (${JSON.stringify(m)})`);
+    // Les quatre tuiles du bas : 126 px partout, icône au-dessus du texte ; « Mes recettes » prend le reste.
     const t = await page.evaluate(() => [...document.querySelectorAll('.tuile')].map(e => {
       const r = e.getBoundingClientRect(), i = e.querySelector('.tuile-icone')?.getBoundingClientRect(), x = e.querySelector('.tuile-txt').getBoundingClientRect();
       return { h: r.height, iconeAuDessus: !i || i.bottom <= x.top };
     }));
-    assert.ok(t.slice(1).every(e => t[0].h < e.h), `${largeur}×${hauteur} : « Mes recettes » moins haute (${t.map(e => Math.round(e.h))})`);
-    assert.ok(t.every(e => e.h <= 190), `${largeur}×${hauteur} : tuiles pas étirées sur un grand écran (${t.map(e => Math.round(e.h))})`);
+    assert.ok(t.slice(1).every(e => Math.abs(e.h - 126) <= 1), `${largeur}×${hauteur} : tuiles de 126 px (${t.map(e => Math.round(e.h))})`);
+    assert.ok(t[0].h >= 84, `${largeur}×${hauteur} : « Mes recettes » (${Math.round(t[0].h)} px)`);
     assert.ok(t.every(e => e.iconeAuDessus), `${largeur}×${hauteur} : icônes au-dessus du texte`);
+    // Même espace entre « Bonjour », le titre, la recherche et « Mes recettes », qui grandit avec l'écran.
+    const ecarts = await page.evaluate(() => {
+      const texte = s => { const r = document.createRange(); r.selectNodeContents(document.querySelector(s)); return r.getBoundingClientRect(); };
+      const b = s => document.querySelector(s).getBoundingClientRect();
+      return [texte('.grand-titre').top - texte('.salut').bottom, b('.recherche').top - texte('.grand-titre').bottom, b('.tuile-recettes').top - b('.recherche').bottom];
+    });
+    assert.ok(Math.max(...ecarts) - Math.min(...ecarts) <= 2, `${largeur}×${hauteur} : espaces égaux (${ecarts.map(Math.round)})`);
+    espaces.push(ecarts[0]);
   }
+  assert.ok(espaces.at(-1) > espaces[0] + 10, `l'espace grandit avec l'écran (${espaces.map(Math.round)})`);
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
