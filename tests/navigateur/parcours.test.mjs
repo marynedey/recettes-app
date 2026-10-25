@@ -1987,7 +1987,15 @@ test('accueil : tient pile dans l\'écran, sans défiler (petit, moyen et grand 
       hautBarre: document.querySelector('.tabbar').getBoundingClientRect().top,
     }));
     assert.ok(m.defile <= 0, `${largeur}×${hauteur} : la page défile de ${m.defile} px`);
-    assert.ok(m.basTuiles <= m.hautBarre && m.hautBarre - m.basTuiles < 40, `${largeur}×${hauteur} : tuiles jusqu'en bas (${JSON.stringify(m)})`);
+    assert.ok(m.basTuiles <= m.hautBarre, `${largeur}×${hauteur} : tuiles au-dessus de la barre (${JSON.stringify(m)})`);
+    // « Mes recettes » moins haute que les autres tuiles ; icônes au-dessus du texte.
+    const t = await page.evaluate(() => [...document.querySelectorAll('.tuile')].map(e => {
+      const r = e.getBoundingClientRect(), i = e.querySelector('.tuile-icone')?.getBoundingClientRect(), x = e.querySelector('.tuile-txt').getBoundingClientRect();
+      return { h: r.height, iconeAuDessus: !i || i.bottom <= x.top };
+    }));
+    assert.ok(t.slice(1).every(e => t[0].h < e.h), `${largeur}×${hauteur} : « Mes recettes » moins haute (${t.map(e => Math.round(e.h))})`);
+    assert.ok(t.every(e => e.h <= 190), `${largeur}×${hauteur} : tuiles pas étirées sur un grand écran (${t.map(e => Math.round(e.h))})`);
+    assert.ok(t.every(e => e.iconeAuDessus), `${largeur}×${hauteur} : icônes au-dessus du texte`);
   }
   assert.deepEqual(erreurs, []);
   await ctx.close();
