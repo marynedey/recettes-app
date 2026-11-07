@@ -2139,3 +2139,27 @@ test('recette pas terminée : un point sur chaque écran, « Reprendre » ou « 
   assert.deepEqual(erreurs, []);
   await ctx.close();
 });
+
+test('recettes : la dernière carte remonte au-dessus de « Ajouter » ; une bulle se ferme d\'un petit glissement', async () => {
+  depotInitial();
+  await nouvellePage();
+  await page.goto(BASE + '#/recettes');
+  await page.locator('.ligne-recette').last().waitFor();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(100);
+  const [carte, fab] = await Promise.all([page.locator('.ligne-recette').last().boundingBox(), page.locator('.fab').boundingBox()]);
+  assert.ok(carte.y + carte.height <= fab.y, `dernière carte (bas ${carte.y + carte.height}) au-dessus du bouton (haut ${fab.y})`);
+
+  await page.evaluate(async () => (await import('./js/ui.js')).toast('Bon appétit !', 8000, { texte: 'Noter dans le carnet', href: '#/' }));
+  await page.locator('.toast.visible').waitFor();
+  const b = await page.locator('.toast').boundingBox();
+  await page.mouse.move(b.x + 20, b.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(b.x + 70, b.y + 10, { steps: 3 });
+  await page.mouse.up();
+  await page.waitForTimeout(250);
+  assert.equal(await page.locator('.toast.visible').count(), 0, 'bulle fermée après un glissement de 50 px');
+  assert.match(page.url(), /#\/recettes|#\/$/, 'le lien de la bulle ne s\'est pas ouvert');
+  assert.deepEqual(erreurs, []);
+  await ctx.close();
+});
