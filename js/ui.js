@@ -134,9 +134,49 @@ export function toast(msg, ms = 2800, action = null) {
     a.addEventListener('click', () => { el.classList.remove('visible'); action.faire?.(); });
     el.append(a);
   }
+  if (!el.dataset.glisse) { el.dataset.glisse = '1'; glisserPourFermer(el); }
+  el.style.transform = ''; el.style.opacity = '';
   requestAnimationFrame(() => el.classList.add('visible'));
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('visible'), ms);
+}
+
+/**
+ * Pastille glissée sur le côté (ou vers le bas) : elle part tout de suite.
+ * Un petit mouvement rapide suffit ; un toucher simple ne fait rien (le lien reste cliquable).
+ */
+function glisserPourFermer(el) {
+  let x0, y0, t0, dx = 0, dy = 0, actif = false;
+  el.addEventListener('pointerdown', e => {
+    if (!el.classList.contains('visible')) return;
+    x0 = e.clientX; y0 = e.clientY; t0 = performance.now(); dx = dy = 0; actif = true;
+  });
+  el.addEventListener('pointermove', e => {
+    if (!actif) return;
+    dx = e.clientX - x0; dy = Math.max(0, e.clientY - y0);
+    if (Math.abs(dx) < 6 && dy < 6) return;
+    el.classList.add('tire');
+    const d = Math.max(Math.abs(dx), dy);
+    el.style.transform = Math.abs(dx) >= dy ? `translate(calc(-50% + ${dx}px), 0)` : `translate(-50%, ${dy}px)`;
+    el.style.opacity = String(Math.max(0.2, 1 - d / 160));
+  });
+  const fin = () => {
+    if (!actif) return;
+    actif = false;
+    el.classList.remove('tire');
+    const d = Math.max(Math.abs(dx), dy);
+    const vitesse = d / Math.max(1, performance.now() - t0);
+    if (d > 50 || (d > 18 && vitesse > 0.3)) {
+      clearTimeout(toastTimer);
+      el.style.transform = Math.abs(dx) >= dy ? `translate(calc(-50% + ${Math.sign(dx) * 400}px), 0)` : 'translate(-50%, 80px)';
+      el.style.opacity = '0';
+      el.classList.remove('visible');
+    } else { el.style.transform = ''; el.style.opacity = ''; }
+  };
+  el.addEventListener('pointerup', fin);
+  el.addEventListener('pointercancel', fin);
+  // Après un glissement, le lien sous le doigt ne s'ouvre pas.
+  el.addEventListener('click', e => { if (Math.max(Math.abs(dx), dy) > 10) { e.preventDefault(); e.stopPropagation(); } }, true);
 }
 
 /** Retour arrière : revient dans l'historique si possible, sinon vers `defaut`. */

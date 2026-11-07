@@ -98,6 +98,8 @@ svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none;
 
 .page { padding: calc(var(--haut) + 20px) 20px calc(var(--tabbar) + var(--bas) + 28px); }
 .page.sans-tabbar { padding-bottom: calc(var(--bas) + 110px); }
+/* Avec le bouton « Ajouter » flottant : la dernière carte peut remonter au-dessus de lui. */
+.page:has(> .fab) { padding-bottom: calc(var(--tabbar) + var(--bas) + 18px + 56px + 24px); }
 
 /* ---------- en-têtes ---------- */
 .entete { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -631,8 +633,8 @@ body.sans-defilement { overflow: hidden; }
   background: var(--encre); color: var(--carte); padding: 12px 18px; border-radius: 14px; font-size: 15px;
   width: max-content; max-width: calc(100% - 40px); opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
 }
-.toast.visible { opacity: 1; transform: translate(-50%, 0); }
-.toast.avec-action.visible { pointer-events: auto; } 
+.toast.visible { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.toast.tire { transition: none; }
 .toast.avec-action { display: flex; align-items: center; flex-wrap: wrap; column-gap: 14px; row-gap: 4px; }
 .toast-texte { min-width: 0; }
 .toast-action { color: var(--toast-action); font-weight: 600; text-decoration: none; white-space: nowrap; }
